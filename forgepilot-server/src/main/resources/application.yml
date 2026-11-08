@@ -1,0 +1,50 @@
+# 本机开发默认值，与 docker-compose.yml 一致。不是生产密钥。
+server:
+  port: 8080
+
+spring:
+  application:
+    name: forgepilot-server
+  datasource:
+    url: ${FORGEPILOT_DB_URL:jdbc:postgresql://localhost:5432/forgepilot}
+    username: ${FORGEPILOT_DB_USERNAME:forgepilot}
+    password: ${FORGEPILOT_DB_PASSWORD:forgepilot}
+  flyway:
+    enabled: true
+  data:
+    redis:
+      host: ${FORGEPILOT_REDIS_HOST:localhost}
+      port: ${FORGEPILOT_REDIS_PORT:6379}
+  rabbitmq:
+    host: ${FORGEPILOT_RABBIT_HOST:localhost}
+    port: ${FORGEPILOT_RABBIT_PORT:5672}
+    username: ${FORGEPILOT_RABBIT_USERNAME:forgepilot}
+    password: ${FORGEPILOT_RABBIT_PASSWORD:forgepilot}
+
+mybatis-plus:
+  configuration:
+    map-underscore-to-camel-case: true
+  global-config:
+    db-config:
+      id-type: assign_uuid
+      insert-strategy: not_null
+      update-strategy: not_null
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      probes:
+        enabled: true
+
+forgepilot:
+  minio:
+    endpoint: ${FORGEPILOT_MINIO_ENDPOINT:http://localhost:9000}
+  execution:
+    base-url: ${FORGEPILOT_EXECUTION_URL:http://localhost:8081}
+  internal-api:
+    # 面向执行面的身份由部署环境注入，不复用用户 JWT，也不在仓库里放共享密钥。
+    configured: false

@@ -1,0 +1,23 @@
+server:
+  port: 8081
+
+spring:
+  application:
+    name: forgepilot-execution
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+forgepilot:
+  control-plane:
+    base-url: ${FORGEPILOT_CONTROL_PLANE_URL:http://localhost:8080}
+  storage:
+    root: ${FORGEPILOT_STORAGE_ROOT:${user.home}/.forgepilot/execution}
+  model-proxy:
+    # 对 Agent 暴露的线路固定为 Responses。监听地址由部署决定，骨架不启动真实代理。
+    wire-api: responses
+    bind: 127.0.0.1
+    port: 8082

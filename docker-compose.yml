@@ -1,0 +1,63 @@
+# 本机开发用的基础设施。账号口令只用于这台机器上的 Compose，不是生产密钥。
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: forgepilot
+      POSTGRES_PASSWORD: forgepilot
+      POSTGRES_DB: forgepilot
+    ports:
+      - "5432:5432"
+    volumes:
+      - forgepilot-postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U forgepilot -d forgepilot"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - forgepilot-redis:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    environment:
+      RABBITMQ_DEFAULT_USER: forgepilot
+      RABBITMQ_DEFAULT_PASS: forgepilot
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    volumes:
+      - forgepilot-rabbitmq:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 10s
+      retries: 20
+
+  minio:
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: forgepilot
+      MINIO_ROOT_PASSWORD: forgepilot-dev
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - forgepilot-minio:/data
+
+volumes:
+  forgepilot-postgres:
+  forgepilot-redis:
+  forgepilot-rabbitmq:
+  forgepilot-minio:

@@ -1,0 +1,12 @@
+target/
+dist/
+node_modules/
+.idea/
+*.iml
+.classpath
+.project
+.settings/
+.DS_Store
+*.log
+*.tsbuildinfo
+.vite/
