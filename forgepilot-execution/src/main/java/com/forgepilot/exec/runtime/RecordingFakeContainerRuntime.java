@@ -37,6 +37,9 @@ public class RecordingFakeContainerRuntime implements ContainerRuntime {
         record.put("allowModelCredentials", spec.allowModelCredentials());
         record.put("allowAgentCli", spec.allowAgentCli());
         record.put("hasModelEnv", containsModelCred(spec.environment()));
+        record.put(
+                "networkPolicy",
+                spec.defaultDenyEgress() ? "none-or-allowlist" : "bridge");
         return new StartedContainer(spec.containerRef(), spec.kind(), record);
     }
 

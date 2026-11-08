@@ -17,6 +17,8 @@ import org.springframework.stereotype.Component;
 @Component
 public class LocalGitSupport {
 
+    private volatile List<String> lastCommand = List.of();
+
     public void mirrorFetch(Path mirrorPath, String cloneUrl, String askPassToken) {
         try {
             if (!Files.exists(mirrorPath)) {
@@ -111,8 +113,14 @@ public class LocalGitSupport {
         run(List.of("git", "push", "-u", remote, branchName), checkout, askPassToken);
     }
 
+    public List<String> lastCommand() {
+        return lastCommand;
+    }
+
     public CommandResult run(List<String> command, Path workDir, String askPassToken) {
         try {
+            assertNoSecretInRemoteUrl(command, askPassToken);
+            this.lastCommand = List.copyOf(command);
             ProcessBuilder pb = new ProcessBuilder(command);
             if (workDir != null) {
                 pb.directory(workDir.toFile());
@@ -151,6 +159,27 @@ public class LocalGitSupport {
     }
 
     public record CommandResult(int exitCode, String stdout) {
+    }
+
+    private static void assertNoSecretInRemoteUrl(List<String> command, String askPassToken) {
+        if (command == null) {
+            return;
+        }
+        for (String part : command) {
+            if (part == null) {
+                continue;
+            }
+            if (askPassToken != null && !askPassToken.isBlank() && part.contains(askPassToken)) {
+                throw new IllegalArgumentException("禁止把 Git 令牌写进命令行或 remote URL");
+            }
+            String lower = part.toLowerCase();
+            if (lower.startsWith("http") && lower.contains("@") && (lower.contains("token") || lower.contains("oauth") || lower.contains(":"))) {
+                // http://user:secret@host 形式
+                if (lower.contains("://") && lower.indexOf('@') > lower.indexOf("://") + 3 && lower.contains(":")) {
+                    throw new IllegalArgumentException("禁止在 remote URL 中嵌入用户名密码/令牌");
+                }
+            }
+        }
     }
 
     private static void deleteRecursive(Path path) throws IOException {

@@ -21,6 +21,7 @@ import com.forgepilot.execution.persistence.TaskStateHistoryMapper;
 import com.forgepilot.execution.persistence.WorkspaceMapper;
 import com.forgepilot.execution.runtime.AgentRuntimePort;
 import com.forgepilot.execution.stream.SessionLogStream;
+import com.forgepilot.system.outbox.OutboxService;
 import com.forgepilot.execution.web.TaskActionRequest;
 import com.forgepilot.project.domain.Project;
 import com.forgepilot.project.domain.ProjectRepository;
@@ -80,6 +81,7 @@ public class TaskSessionService {
     private final ActivityLogRecorder activityLogRecorder;
     private final NodeRegistryService nodeRegistryService;
     private final SessionLogStream sessionLogStream;
+    private final OutboxService outboxService;
     private final String storageRoot;
 
     public TaskSessionService(
@@ -101,6 +103,7 @@ public class TaskSessionService {
             ActivityLogRecorder activityLogRecorder,
             NodeRegistryService nodeRegistryService,
             SessionLogStream sessionLogStream,
+            OutboxService outboxService,
             @Value("${forgepilot.workspace.storage-root:${java.io.tmpdir}/forgepilot-workspaces}") String storageRoot) {
         this.codingTaskMapper = codingTaskMapper;
         this.agentSessionMapper = agentSessionMapper;
@@ -120,6 +123,7 @@ public class TaskSessionService {
         this.activityLogRecorder = activityLogRecorder;
         this.nodeRegistryService = nodeRegistryService;
         this.sessionLogStream = sessionLogStream;
+        this.outboxService = outboxService;
         this.storageRoot = storageRoot;
     }
 
@@ -322,6 +326,12 @@ public class TaskSessionService {
                 provider.getUpstreamWireApi()));
 
         // 掩码：活动日志不写密钥
+        outboxService.enqueue(
+                "SESSION_START_REQUESTED",
+                "SESSION",
+                session.getId(),
+                session.getId(),
+                Map.of("taskId", task.getId(), "reason", reason, "agentType", "CODEX_CLI"));
         activityLogRecorder.record(
                 user.tenantId(),
                 "USER",

@@ -67,4 +67,28 @@ class ContainerRuntimeTest {
         boolean available = docker.isAvailable();
         assertThat(available || !available).isTrue();
     }
+
+    @Test
+    void dockerNetworkPolicyDefaultsToNoneAndAllowlistWhenFlagged() {
+        DockerContainerRuntime safe = new DockerContainerRuntime(false, "forgepilot-egress");
+        var denySpec = ContainerRuntime.StartSpec.agent(
+                "a1",
+                "img",
+                List.of("true"),
+                temp.resolve("ws"),
+                temp.resolve("home"),
+                Map.of(),
+                List.of("git.example.com", "127.0.0.1:8081", "registry.npmjs.org"));
+        assertThat(safe.resolveNetwork(denySpec)).isEqualTo("none");
+
+        DockerContainerRuntime allow = new DockerContainerRuntime(true, "forgepilot-egress");
+        assertThat(allow.resolveNetwork(denySpec)).isEqualTo("forgepilot-egress");
+
+        RecordingFakeContainerRuntime fake = new RecordingFakeContainerRuntime();
+        var started = fake.start(denySpec);
+        assertThat(started.isolationRecord().get("networkPolicy")).isEqualTo("none-or-allowlist");
+        assertThat(started.isolationRecord().get("egressAllowlist").toString())
+                .contains("git.example.com")
+                .contains("registry.npmjs.org");
+    }
 }

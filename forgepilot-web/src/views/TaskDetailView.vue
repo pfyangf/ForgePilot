@@ -28,7 +28,7 @@
         type="info"
         :closable="false"
         show-icon
-        title="Codex 不声明向运行中进程发消息。需要继续时请取消后附说明重试（同一工作区新 Session）。不会假装编码已完成。"
+        title="Codex 不声明向运行中进程发消息。需要继续时请取消后附说明重试（同一工作区新 Session）。不会假装编码已完成。高频日志走 Redis/SSE；归档走 MinIO（默认内存假存储）。"
       />
       <pre class="log">{{ task.logs.join('\n') || '暂无日志（可轮询 /session）' }}</pre>
       <div class="row">

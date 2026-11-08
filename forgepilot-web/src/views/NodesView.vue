@@ -6,7 +6,7 @@
       type="info"
       :closable="false"
       show-icon
-      title="节点在 PostgreSQL 注册并心跳。并行任务各用独立工作区与 Session 凭证；仓库 mirror 只读共享。"
+      title="节点在 PostgreSQL 注册并心跳。并行任务各用独立工作区与 Session 凭证；仓库 mirror 只读共享。停止容器不删工作区（保留宽限见 FORGEPILOT_WORKSPACE_RETENTION_GRACE_DAYS）。控制事件 Outbox 默认内存假 broker（FORGEPILOT_RABBIT_ENABLED）；会话日志归档默认内存存储（FORGEPILOT_MINIO_ENABLED）。"
     />
     <el-button class="block" :loading="loading" @click="reload">刷新</el-button>
     <el-table :data="nodes" empty-text="暂无节点" class="block">

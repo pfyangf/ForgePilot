@@ -11,6 +11,10 @@ import com.forgepilot.execution.domain.ExecutionNode;
 import com.forgepilot.execution.persistence.CodingTaskMapper;
 import com.forgepilot.execution.persistence.ExecutionNodeMapper;
 import com.forgepilot.system.activity.ActivityLogRecorder;
+import com.forgepilot.system.outbox.InMemoryControlEventPublisher;
+import com.forgepilot.system.outbox.OutboxService;
+import com.forgepilot.system.persistence.OutboxMapper;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -28,7 +32,8 @@ class NodeRegistryServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new NodeRegistryService(nodeMapper, taskMapper, recorder, 45);
+        OutboxService outbox = new OutboxService(mock(OutboxMapper.class), new ObjectMapper(), new InMemoryControlEventPublisher());
+        service = new NodeRegistryService(nodeMapper, taskMapper, recorder, outbox, 45);
         when(nodeMapper.selectOne(any(LambdaQueryWrapper.class))).thenAnswer(inv -> store.stream().findFirst().orElse(null));
         when(nodeMapper.selectList(any(LambdaQueryWrapper.class))).thenAnswer(inv -> List.copyOf(store));
         when(nodeMapper.selectById(any())).thenAnswer(inv -> store.stream()

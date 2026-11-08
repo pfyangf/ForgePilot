@@ -3,6 +3,7 @@ package com.forgepilot.delivery.service;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.forgepilot.delivery.domain.MergeRequestRecord;
 import com.forgepilot.delivery.domain.VerificationRun;
+import com.forgepilot.delivery.git.GitCredentialPort;
 import com.forgepilot.delivery.git.LocalGitSupport;
 import com.forgepilot.delivery.git.MultiRepoWorkspaceCheckout;
 import com.forgepilot.delivery.git.MultiRepoWorkspaceCheckout.FrozenRepo;
@@ -30,6 +31,7 @@ import com.forgepilot.project.persistence.ProjectMapper;
 import com.forgepilot.project.persistence.ProjectRepositoryMapper;
 import com.forgepilot.project.service.ProjectAccess;
 import com.forgepilot.system.activity.ActivityLogRecorder;
+import com.forgepilot.system.outbox.OutboxService;
 import com.forgepilot.system.auth.AuthUser;
 import java.nio.file.Path;
 import java.time.Duration;
@@ -69,6 +71,8 @@ public class TaskVerifyDeliveryService {
     private final WorkspaceCheckoutMapper workspaceCheckoutMapper;
     private final TaskStateHistoryMapper historyMapper;
     private final ActivityLogRecorder activityLogRecorder;
+    private final GitCredentialPort gitCredentialPort;
+    private final OutboxService outboxService;
     private final String storageRoot;
 
     public TaskVerifyDeliveryService(
@@ -88,6 +92,8 @@ public class TaskVerifyDeliveryService {
             WorkspaceCheckoutMapper workspaceCheckoutMapper,
             TaskStateHistoryMapper historyMapper,
             ActivityLogRecorder activityLogRecorder,
+            GitCredentialPort gitCredentialPort,
+            OutboxService outboxService,
             @Value("${forgepilot.workspace.storage-root:${java.io.tmpdir}/forgepilot-workspaces}") String storageRoot) {
         this.codingTaskMapper = codingTaskMapper;
         this.freezeMapper = freezeMapper;
@@ -105,6 +111,8 @@ public class TaskVerifyDeliveryService {
         this.workspaceCheckoutMapper = workspaceCheckoutMapper;
         this.historyMapper = historyMapper;
         this.activityLogRecorder = activityLogRecorder;
+        this.gitCredentialPort = gitCredentialPort;
+        this.outboxService = outboxService;
         this.storageRoot = storageRoot;
     }
 
@@ -125,13 +133,14 @@ public class TaskVerifyDeliveryService {
         if (frozen.isEmpty()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "任务没有冻结仓库集合");
         }
+        String askPass = issueAskPass(task.getProjectId(), frozen);
 
         String from = task.getStatus();
         task.setStatus("VERIFYING");
         codingTaskMapper.updateById(task);
         recordHistory(taskId, from, "VERIFYING", "开始平台验证", user.userId());
 
-        PreparedWorkspace workspace = workspaceCheckout.prepare(storageRoot, taskId, frozen, null);
+        PreparedWorkspace workspace = workspaceCheckout.prepare(storageRoot, taskId, frozen, askPass);
         Workspace ws = persistWorkspace(user, task, workspace);
 
         // 把冻结 baseSha 回写（首次检出）
@@ -220,7 +229,7 @@ public class TaskVerifyDeliveryService {
                     workspace.root().toString());
         }
 
-        DeliveryOutcome delivery = deliverChangedRepos(user, task, workspace);
+        DeliveryOutcome delivery = deliverChangedRepos(user, task, workspace, askPass);
         return new VerifyDeliveryResult(
                 taskId,
                 delivery.taskStatus(),
@@ -241,9 +250,10 @@ public class TaskVerifyDeliveryService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "当前状态不能重试交付");
         }
         List<FrozenRepo> frozen = loadFrozen(taskId);
-        PreparedWorkspace workspace = workspaceCheckout.prepare(storageRoot, taskId, frozen, null);
+        String askPass = issueAskPass(task.getProjectId(), frozen);
+        PreparedWorkspace workspace = workspaceCheckout.prepare(storageRoot, taskId, frozen, askPass);
         persistWorkspace(user, task, workspace);
-        DeliveryOutcome delivery = deliverChangedRepos(user, task, workspace);
+        DeliveryOutcome delivery = deliverChangedRepos(user, task, workspace, askPass);
         return new VerifyDeliveryResult(
                 taskId,
                 delivery.taskStatus(),
@@ -257,7 +267,7 @@ public class TaskVerifyDeliveryService {
                 workspace.root().toString());
     }
 
-    private DeliveryOutcome deliverChangedRepos(AuthUser user, CodingTask task, PreparedWorkspace workspace) {
+    private DeliveryOutcome deliverChangedRepos(AuthUser user, CodingTask task, PreparedWorkspace workspace, String askPass) {
         String branch = task.getBranchName() == null || task.getBranchName().isBlank()
                 ? "fp/" + task.getId()
                 : task.getBranchName();
@@ -312,7 +322,7 @@ public class TaskVerifyDeliveryService {
 
             try {
                 String headSha = git.revParse(checkout.path(), "HEAD");
-                git.push(checkout.path(), "origin", branch, null);
+                git.push(checkout.path(), "origin", branch, askPass);
 
                 String idempotencyKey = task.getId() + ":" + checkout.projectRepositoryId();
                 MergeRequestView view;
@@ -461,7 +471,42 @@ public class TaskVerifyDeliveryService {
                         "branchName",
                         branch),
                 failures.isEmpty() ? "SUCCESS" : "FAILURE");
+        outboxService.enqueue(
+                "DELIVERY_RESULT",
+                "TASK",
+                task.getId(),
+                null,
+                Map.of(
+                        "taskId", task.getId(),
+                        "status", toStatus,
+                        "needed", needed,
+                        "mrCount", mrs.size(),
+                        "failureCount", failures.size()));
         return new DeliveryOutcome(toStatus, message, mrs, testChanges);
+    }
+
+
+    private String issueAskPass(String projectId, List<FrozenRepo> frozen) {
+        java.util.LinkedHashSet<String> hosts = new java.util.LinkedHashSet<>();
+        boolean needsCred = false;
+        for (FrozenRepo repo : frozen) {
+            String url = repo.cloneUrl();
+            if (url == null || url.isBlank() || url.startsWith("file:")) {
+                continue;
+            }
+            needsCred = true;
+            try {
+                java.net.URI uri = java.net.URI.create(url);
+                if (uri.getHost() != null) {
+                    hosts.add(uri.getHost());
+                }
+            } catch (Exception ignored) {
+            }
+        }
+        if (!needsCred) {
+            return null;
+        }
+        return gitCredentialPort.issue(projectId, hosts).token();
     }
 
     private List<FrozenRepo> loadFrozen(String taskId) {

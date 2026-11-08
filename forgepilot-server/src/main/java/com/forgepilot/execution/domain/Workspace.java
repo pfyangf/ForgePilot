@@ -18,4 +18,5 @@ public class Workspace {
     private String agentHomePath;
     private String status;
     private String createdBy;
+    private java.time.Instant createdAt;
 }

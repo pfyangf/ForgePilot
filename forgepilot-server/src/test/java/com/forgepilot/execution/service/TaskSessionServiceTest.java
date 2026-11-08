@@ -37,6 +37,10 @@ import com.forgepilot.project.persistence.ProjectMemberMapper;
 import com.forgepilot.project.persistence.ProjectRepositoryMapper;
 import com.forgepilot.project.service.ProjectAccess;
 import com.forgepilot.system.activity.ActivityLogRecorder;
+import com.forgepilot.system.outbox.InMemoryControlEventPublisher;
+import com.forgepilot.system.outbox.OutboxService;
+import com.forgepilot.system.persistence.OutboxMapper;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.forgepilot.system.auth.AuthUser;
 import com.forgepilot.system.domain.ModelProvider;
 import com.forgepilot.system.persistence.IntegrationSecretMapper;
@@ -100,8 +104,14 @@ class TaskSessionServiceTest {
                 new MultiRepoWorkspaceCheckout(git),
                 agentRuntimePort,
                 recorder,
-                new NodeRegistryService(executionNodeMapper, codingTaskMapper, recorder, 45),
+                new NodeRegistryService(
+                        executionNodeMapper,
+                        codingTaskMapper,
+                        recorder,
+                        new OutboxService(mock(OutboxMapper.class), new ObjectMapper(), new InMemoryControlEventPublisher()),
+                        45),
                 new InMemorySessionLogStream(),
+                new OutboxService(mock(OutboxMapper.class), new ObjectMapper(), new InMemoryControlEventPublisher()),
                 temp.resolve("storage").toString());
         when(executionNodeMapper.selectList(any(LambdaQueryWrapper.class))).thenReturn(List.of());
 

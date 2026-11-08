@@ -4,7 +4,7 @@ ForgePilot（云端 AI Coding 平台）以需求为入口，调度 AI Agent 在�
 
 一个项目关联多个 Git 仓库。一次任务使用一个工作区目录，平台把这些仓库都检出到该目录里。MVP 的 Agent 运行时是容器内的 Codex CLI。模型长期密钥留在执行节点的代理侧。
 
-当前仓库在 `dev` 分支推进 V1.2：已接通本地登录与 JWT、个人工作台、项目/多仓库、需求、任务、模型/编码工具目录、三层规约与合成快照、操作记录查询与日报，以及 GitHostingPort、多仓检出、验证/Draft MR 交付、Agent Session、Responses 模型代理（含真实上游转发/占位 stub）、Codex CLI 适配器、执行节点注册/心跳/排队、ContainerRuntime（Fake+可选 Docker）、Session 高频日志流（Redis/内存）。无 `codex` 时不假装编码成功。
+当前仓库在 `dev` 分支推进 V1.2：已接通本地登录与 JWT、个人工作台、项目/多仓库、需求、任务、模型/编码工具目录、三层规约与合成快照、操作记录查询与日报，以及 GitHostingPort、多仓检出、验证/Draft MR 交付、Agent Session、Responses 模型代理（含真实上游转发/占位 stub）、Codex CLI 适配器、执行节点注册/心跳/排队、ContainerRuntime（Fake+可选 Docker）、Session 高频日志流（Redis/内存）、事务性 Outbox（控制/状态事件，默认内存假 broker，可选 RabbitMQ）、MinIO/S3 日志归档（默认内存假存储）、GIT_ASKPASS 短时令牌、工作区保留策略、Docker `network=none` 默认与 allowlist 开关。无 `codex` 时不假装编码成功。
 
 ## 文档
 
@@ -45,6 +45,20 @@ npm run dev --prefix forgepilot-web
 
 Compose 里的账号口令只用于本机开发：PostgreSQL 和 RabbitMQ 是 `forgepilot` / `forgepilot`，MinIO 是 `forgepilot` / `forgepilot-dev`。不要把它们用于共享环境。
 
+## 本机配置要点（docker-compose）
+
+Compose 只起基础设施；控制面通过环境变量/ `application.yml` 开关对接：
+
+| 能力 | 默认（`mvn test` 友好） | 打开真实依赖 |
+| --- | --- | --- |
+| RabbitMQ 控制事件 | `FORGEPILOT_RABBIT_ENABLED=false`（Outbox → 内存假 broker） | `true`，并保证 `rabbitmq` 健康 |
+| MinIO 日志归档 | `FORGEPILOT_MINIO_ENABLED=false`（`InMemoryObjectStorage`） | `true`，endpoint `http://localhost:9000`，账号见上 |
+| 工作区保留宽限 | `FORGEPILOT_WORKSPACE_RETENTION_GRACE_DAYS=7` | 任务 `COMPLETED`/`FAILED`/`CANCELLED` 后超过宽限才删盘；**停止 Agent/验证容器不删工作区** |
+| Docker 出口 | `FORGEPILOT_DOCKER_ALLOWLIST_NETWORK=false` → `network=none` | `true` 时使用自定义 bridge 名（默认 `forgepilot-egress`），需自备防火墙放行 Git/模型代理/包仓库 |
+
+高频 Agent 日志只走 Redis Stream / SSE，**不会**进 RabbitMQ。归档失败会写 Outbox `LOG_ARCHIVE_RETRY`，且不删流中的块。
+
+
 ## 本机演示账号
 
 Flyway `V3__local_demo_seed.sql` 写入下列账号，口令均为 `ForgePilot!dev`。`V4__demo_repositories.sql` 为支付项目补了两条仓库连接。
@@ -69,6 +83,7 @@ Flyway `V3__local_demo_seed.sql` 写入下列账号，口令均为 `ForgePilot!d
 - `POST /api/v1/tasks/{id}/verify`、`POST /api/v1/tasks/{id}/retry-delivery`（冻结仓检出 + 工作区根命令验证 + 有改动仓库推送 `fp/{taskId}` / Draft MR；不假装 Codex）
 - `POST /api/v1/tasks/{id}/start|retry|input|request-changes`，`GET /api/v1/tasks/{id}/session`（Task ≠ Session；规约快照；执行侧 `/v1/responses` 代理）
 - `GET /api/v1/nodes`，`POST /api/v1/internal/nodes/register|heartbeat|assign-next`；Session 日志 `GET .../sessions/{sid}/logs`（Redis Stream，失败回退内存；SSE 可选）
+- `POST /api/v1/tasks/{taskId}/sessions/{sessionId}/archive-logs`，`GET .../archived-log` 与 `.../archived-log/meta`（MinIO/假存储指针）
 - `GET|POST|PUT /api/v1/model-providers`（响应含 `hasSecret`，从不返回 apiKey）
 - `GET|POST|PUT /api/v1/coding-tools`
 - `GET|POST|PUT /api/v1/guidance`，`GET /api/v1/projects/{id}/conventions/effective`，`POST .../conventions/snapshots`
@@ -79,10 +94,16 @@ Flyway `V5` 为演示科技写入了本地占位 Provider/Codex 工具和三层�
 
 ## 还没有的东西
 
-本机无 `codex` 时 start 返回 `NOT_AVAILABLE` 并进入 `WAITING_USER`，不会把任务标为完成。长期密钥留在控制面密文库 / 执行侧代理内存，只把会话短时令牌给 Agent；Git 令牌不进 remote URL。Docker daemon 非测试依赖（有 `RecordingFakeContainerRuntime`）；真实 Docker 实现可选。
+本机无 `codex` 时 start 返回 `NOT_AVAILABLE` 并进入 `WAITING_USER`，不会把任务标为完成。长期密钥留在控制面密文库 / 执行侧代理内存，只把会话短时令牌给 Agent；Git 令牌经 `GIT_ASKPASS` 注入，不进 remote URL / 命令行。Docker daemon 非测试依赖（有 `RecordingFakeContainerRuntime`）；真实 Docker 实现可选。成员邀请/列表 API、完整终端态 `terminalAt` 驱动的保留清理、真实 egress bridge 防火墙编排仍待后续切片。
+
+## 工作区保留
+
+- **容器停止 ≠ 删除工作区**：`RetainingContainerStop` / `WorkspaceRetentionService.onContainerStopped` 只记日志。
+- 仅当任务状态为 `COMPLETED` / `FAILED` / `CANCELLED`，且超过 `forgepilot.workspace.retention-grace-days`（默认 7）后，`cleanupEligible` 才删磁盘目录。
+- MVP 用 `workspace.createdAt` 近似终态时间；生产应记录明确的 `terminalAt`。
 
 ## 隔离约定（MVP）
 
 - Agent 不得接收控制面、PostgreSQL、Redis、RabbitMQ、MinIO 管理凭证。
 - 模型入口只有会话级 Responses 代理 URL + 短时令牌；`wire_api = responses`。
-- 出口默认拒绝的意图已在执行配置与 `ContainerRuntime` 注释中声明；本机 `ProcessRuntime` 尚未加网络锁。
+- Docker 默认 `network=none`；`forgepilot.docker.allowlist-network.enabled=true` 时改用命名 allowlist bridge（仍须宿主侧放行 Git 主机、模型代理、包仓库）。

@@ -6,6 +6,7 @@ import com.forgepilot.execution.domain.ExecutionNode;
 import com.forgepilot.execution.persistence.CodingTaskMapper;
 import com.forgepilot.execution.persistence.ExecutionNodeMapper;
 import com.forgepilot.system.activity.ActivityLogRecorder;
+import com.forgepilot.system.outbox.OutboxService;
 import com.forgepilot.system.auth.AuthUser;
 import java.time.Duration;
 import java.time.Instant;
@@ -31,16 +32,19 @@ public class NodeRegistryService {
     private final ExecutionNodeMapper executionNodeMapper;
     private final CodingTaskMapper codingTaskMapper;
     private final ActivityLogRecorder activityLogRecorder;
+    private final OutboxService outboxService;
     private final Duration heartbeatTimeout;
 
     public NodeRegistryService(
             ExecutionNodeMapper executionNodeMapper,
             CodingTaskMapper codingTaskMapper,
             ActivityLogRecorder activityLogRecorder,
+            OutboxService outboxService,
             @Value("${forgepilot.execution.heartbeat-timeout-seconds:45}") long heartbeatTimeoutSeconds) {
         this.executionNodeMapper = executionNodeMapper;
         this.codingTaskMapper = codingTaskMapper;
         this.activityLogRecorder = activityLogRecorder;
+        this.outboxService = outboxService;
         this.heartbeatTimeout = Duration.ofSeconds(heartbeatTimeoutSeconds);
     }
 
@@ -175,6 +179,12 @@ public class NodeRegistryService {
                 "任务分配到节点 " + node.getNodeKey(),
                 Map.of("nodeId", node.getId(), "nodeKey", node.getNodeKey(), "taskId", task.getId()),
                 "SUCCESS");
+        outboxService.enqueue(
+                "NODE_ASSIGNED",
+                "TASK",
+                task.getId(),
+                null,
+                Map.of("nodeId", node.getId(), "nodeKey", node.getNodeKey(), "taskId", task.getId()));
         return new Assignment(task.getId(), node.getId(), node.getNodeKey());
     }
 

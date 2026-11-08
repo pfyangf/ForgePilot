@@ -42,7 +42,20 @@ management:
 
 forgepilot:
   minio:
+    enabled: ${FORGEPILOT_MINIO_ENABLED:false}
     endpoint: ${FORGEPILOT_MINIO_ENDPOINT:http://localhost:9000}
+    access-key: ${FORGEPILOT_MINIO_ACCESS_KEY:forgepilot}
+    secret-key: ${FORGEPILOT_MINIO_SECRET_KEY:forgepilot-dev}
+    bucket: ${FORGEPILOT_MINIO_BUCKET:forgepilot}
+  rabbit:
+    # false：控制事件走内存假 broker（默认，单元测试无需 RabbitMQ）
+    # true：Outbox 排空到 RabbitMQ（需 Compose 中的 rabbitmq）
+    enabled: ${FORGEPILOT_RABBIT_ENABLED:false}
+  docker:
+    allowlist-network:
+      # 默认 false → Docker runtime 使用 network=none（安全默认）
+      enabled: ${FORGEPILOT_DOCKER_ALLOWLIST_NETWORK:false}
+      name: ${FORGEPILOT_DOCKER_ALLOWLIST_NETWORK_NAME:forgepilot-egress}
   execution:
     base-url: ${FORGEPILOT_EXECUTION_URL:http://localhost:8081}
     heartbeat-timeout-seconds: ${FORGEPILOT_NODE_HEARTBEAT_TIMEOUT:45}
@@ -56,5 +69,9 @@ forgepilot:
     expire-seconds: ${FORGEPILOT_JWT_EXPIRE_SECONDS:86400}
   workspace:
     storage-root: ${FORGEPILOT_WORKSPACE_ROOT:${java.io.tmpdir}/forgepilot-workspaces}
+    # 任务 COMPLETED/FAILED/CANCELLED 后保留工作区的宽限天数；停止容器不会删工作区
+    retention-grace-days: ${FORGEPILOT_WORKSPACE_RETENTION_GRACE_DAYS:7}
+  git:
+    token-ttl-seconds: ${FORGEPILOT_GIT_TOKEN_TTL_SECONDS:900}
   gitlab:
     token: ${FORGEPILOT_GITLAB_TOKEN:}

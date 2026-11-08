@@ -39,6 +39,11 @@ import com.forgepilot.project.persistence.ProjectMemberMapper;
 import com.forgepilot.project.persistence.ProjectRepositoryMapper;
 import com.forgepilot.project.service.ProjectAccess;
 import com.forgepilot.system.activity.ActivityLogRecorder;
+import com.forgepilot.system.outbox.InMemoryControlEventPublisher;
+import com.forgepilot.system.outbox.OutboxService;
+import com.forgepilot.delivery.git.InMemoryGitCredentialService;
+import com.forgepilot.system.persistence.OutboxMapper;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.forgepilot.system.auth.AuthUser;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -107,6 +112,8 @@ class DeliveryPartialFailureTest {
                 workspaceCheckoutMapper,
                 historyMapper,
                 recorder,
+                new InMemoryGitCredentialService(900),
+                new OutboxService(mock(OutboxMapper.class), new ObjectMapper(), new InMemoryControlEventPublisher()),
                 temp.resolve("storage").toString());
 
         Project project = new Project();
