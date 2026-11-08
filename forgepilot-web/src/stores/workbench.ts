@@ -50,6 +50,58 @@ interface WorkbenchSnapshot {
   counts: WorkbenchCounts
 }
 
+interface RequirementDetailResponse {
+  requirement: ApiRequirement & { code?: string; priority?: string }
+  draft: string
+  confirmed: boolean
+  confirmedBy: string | null
+  tasks: Array<{
+    id: string
+    requirementId: string
+    title: string
+    status: string
+    projectId: string
+    projectName: string
+    branchName: string
+    createdBy: string
+    ownerId: string
+    frozenRepoCount: number
+  }>
+}
+
+interface TaskDetailResponse {
+  task: {
+    id: string
+    requirementId: string
+    title: string
+    status: string
+    projectId: string
+    projectName: string
+    branchName: string
+    createdBy: string
+    ownerId: string
+    description?: string
+    frozenRepoCount: number
+  }
+  frozenRepositories: Array<{
+    id: string
+    projectRepositoryId: string
+    displayName: string | null
+    localDirectoryName: string | null
+    cloneUrl: string | null
+    baseBranch: string
+    deliveryState: string
+  }>
+  unsupported: {
+    startOrRetryBlocked: boolean
+    startOrRetryReason: string
+    requestChangesBlocked: boolean
+    requestChangesReason: string
+    retryBlocked: boolean
+    retryReason: string
+  }
+}
+
 function toRequirement(item: ApiRequirement): WorkRequirement {
   return {
     id: item.id,
@@ -93,7 +145,16 @@ function toTask(item: ApiTask): WorkTask {
     verificationCommand: '',
     verificationLog: '',
     verificationExitCode: null,
-    evidenceNote: '详情页的执行动作仍是占位；列表与进度来自控制面。',
+    evidenceNote: '执行、验证、推送 MR 尚未接通。可做的人工动作会走真实接口。',
+    frozenRepositories: [],
+    unsupported: {
+      startOrRetryBlocked: true,
+      startOrRetryReason: 'Codex / 执行节点尚未接通',
+      requestChangesBlocked: true,
+      requestChangesReason: '要求修改需要新 Session，尚未实现',
+      retryBlocked: true,
+      retryReason: '附说明重试需要执行面，尚未实现',
+    },
   }
 }
 
@@ -104,6 +165,7 @@ export const useWorkbenchStore = defineStore('workbench', () => {
   const scope = ref<'mine' | 'member' | 'waiting'>('waiting')
   const loading = ref(false)
   const error = ref('')
+  const actionError = ref('')
   const counts = ref<WorkbenchCounts>({
     requirements: 0,
     tasks: 0,
@@ -157,13 +219,106 @@ export const useWorkbenchStore = defineStore('workbench', () => {
     return { done, total: related.length }
   }
 
-  function confirmRequirement(id: string) {
+  async function loadRequirementDetail(id: string) {
+    actionError.value = ''
+    const detail = await apiFetch<RequirementDetailResponse>(`/api/v1/requirements/${id}`)
+    const mapped = toRequirement({
+      ...detail.requirement,
+      draft: detail.draft,
+      confirmed: detail.confirmed,
+    })
+    mapped.suggestions = []
+    const idx = requirements.value.findIndex((item) => item.id === id)
+    if (idx >= 0) {
+      requirements.value[idx] = mapped
+    } else {
+      requirements.value.push(mapped)
+    }
+    for (const task of detail.tasks) {
+      const existing = tasks.value.find((item) => item.id === task.id)
+      if (!existing) {
+        tasks.value.push(
+          toTask({
+            id: task.id,
+            requirementId: task.requirementId,
+            title: task.title,
+            status: task.status,
+            sessionStatus: null,
+            createdBy: task.createdBy,
+            ownerId: task.ownerId,
+            projectId: task.projectId,
+            projectName: task.projectName,
+            branchName: task.branchName,
+            agentLabel: 'Codex CLI',
+            interactiveInput: false,
+            interrupted: false,
+          }),
+        )
+      }
+    }
+    return mapped
+  }
+
+  async function loadTaskDetail(id: string) {
+    actionError.value = ''
+    const detail = await apiFetch<TaskDetailResponse>(`/api/v1/tasks/${id}`)
+    const mapped = toTask({
+      id: detail.task.id,
+      requirementId: detail.task.requirementId,
+      title: detail.task.title,
+      status: detail.task.status,
+      sessionStatus: null,
+      createdBy: detail.task.createdBy,
+      ownerId: detail.task.ownerId,
+      projectId: detail.task.projectId,
+      projectName: detail.task.projectName,
+      branchName: detail.task.branchName,
+      agentLabel: 'Codex CLI',
+      interactiveInput: false,
+      interrupted: false,
+    })
+    mapped.frozenRepositories = detail.frozenRepositories.map((repo) => ({
+      directoryName: repo.localDirectoryName || repo.displayName || repo.projectRepositoryId,
+      baseBranch: repo.baseBranch,
+      deliveryState: repo.deliveryState,
+      cloneUrl: repo.cloneUrl || '',
+    }))
+    mapped.checkouts = mapped.frozenRepositories.map((repo) => ({
+      directoryName: repo.directoryName,
+      changed: repo.deliveryState !== 'NONE',
+    }))
+    mapped.unsupported = detail.unsupported
+    mapped.evidenceNote =
+      detail.task.status === 'WAITING_APPROVAL'
+        ? '审核通过只改任务状态，不会合并 MR。推送与创建 MR 尚未接通。'
+        : '执行、验证、推送 MR 尚未接通。可做的人工动作会走真实接口。'
+    const idx = tasks.value.findIndex((item) => item.id === id)
+    if (idx >= 0) {
+      tasks.value[idx] = mapped
+    } else {
+      tasks.value.push(mapped)
+    }
+    return mapped
+  }
+
+  async function confirmRequirement(id: string) {
     const requirement = requirementById(id)
     if (!requirement || requirement.confirmed) {
       return
     }
-    requirement.confirmed = true
-    requirement.status = '待开发'
+    actionError.value = ''
+    try {
+      const titles = requirement.suggestions.map((item) => item.title)
+      await apiFetch(`/api/v1/requirements/${id}/confirm-analysis`, {
+        method: 'POST',
+        body: JSON.stringify({ draft: requirement.draft, taskTitles: titles }),
+      })
+      await loadRequirementDetail(id)
+      await load(scope.value)
+    } catch (err) {
+      actionError.value = err instanceof Error ? err.message : '确认失败'
+      throw err
+    }
   }
 
   function addSuggestion(id: string, title: string) {
@@ -182,83 +337,95 @@ export const useWorkbenchStore = defineStore('workbench', () => {
     requirement.suggestions = requirement.suggestions.filter((item) => item.id !== suggestionId)
   }
 
-  function appendLog(task: WorkTask, line: string) {
-    task.logs.push(line)
+  async function createTask(requirementId: string, title: string) {
+    actionError.value = ''
+    try {
+      await apiFetch(`/api/v1/requirements/${requirementId}/tasks`, {
+        method: 'POST',
+        body: JSON.stringify({
+          title,
+          taskType: 'IMPLEMENT',
+          priority: 'MEDIUM',
+        }),
+      })
+      await loadRequirementDetail(requirementId)
+      await load(scope.value)
+    } catch (err) {
+      actionError.value = err instanceof Error ? err.message : '创建任务失败'
+      throw err
+    }
   }
 
-  function sendMessage(id: string, message: string) {
-    const task = taskById(id)
-    if (!task || task.sessionStatus !== 'WAITING_INPUT' || !task.interactiveInput || message.trim() === '') {
-      return
+  async function cancelTask(id: string, note = '') {
+    actionError.value = ''
+    try {
+      await apiFetch(`/api/v1/tasks/${id}/cancel`, {
+        method: 'POST',
+        body: JSON.stringify({ note }),
+      })
+      await loadTaskDetail(id)
+      await load(scope.value)
+    } catch (err) {
+      actionError.value = err instanceof Error ? err.message : '取消失败'
+      throw err
     }
-    task.sessionStatus = 'RUNNING'
-    appendLog(task, `user: ${message.trim()}`)
   }
 
-  function cancelTask(id: string) {
-    const task = taskById(id)
-    if (!task || task.status === 'COMPLETED' || task.status === 'FAILED' || task.status === 'CANCELLED') {
-      return
+  async function abandonTask(id: string, note = '') {
+    actionError.value = ''
+    try {
+      await apiFetch(`/api/v1/tasks/${id}/abandon`, {
+        method: 'POST',
+        body: JSON.stringify({ note }),
+      })
+      await loadTaskDetail(id)
+      await load(scope.value)
+    } catch (err) {
+      actionError.value = err instanceof Error ? err.message : '放弃失败'
+      throw err
     }
-    task.status = 'CANCELLED'
-    task.sessionStatus = 'CANCELLED'
-    appendLog(task, 'cancelled, workspace kept')
   }
 
-  function retryTask(id: string, note: string) {
-    const task = taskById(id)
-    if (!task) {
-      return
+  async function approveTask(id: string, note = '') {
+    actionError.value = ''
+    try {
+      await apiFetch(`/api/v1/tasks/${id}/approve`, {
+        method: 'POST',
+        body: JSON.stringify({ note }),
+      })
+      await loadTaskDetail(id)
+      await load(scope.value)
+    } catch (err) {
+      actionError.value = err instanceof Error ? err.message : '审核失败'
+      throw err
     }
-    if (task.status !== 'WAITING_USER' && task.status !== 'RUNNING' && task.status !== 'WAITING_APPROVAL') {
-      return
-    }
-    task.status = 'RUNNING'
-    task.sessionStatus = 'RUNNING'
-    task.interrupted = false
-    appendLog(task, `new session on the same workspace: ${note.trim() || 'no note'}`)
   }
 
-  function abandonTask(id: string) {
-    const task = taskById(id)
-    if (!task || task.status !== 'WAITING_USER') {
-      return
-    }
-    task.status = 'FAILED'
-    appendLog(task, 'user abandoned the task')
-    task.evidenceNote = '用户明确放弃，任务进入 FAILED。'
+  function sendMessage(_id: string, _message: string) {
+    actionError.value = '当前适配器不能把消息送进仍在运行的进程，且执行面尚未接通'
   }
 
-  function approveTask(id: string) {
-    const task = taskById(id)
-    if (!task || task.status !== 'WAITING_APPROVAL') {
-      return
-    }
-    task.status = 'COMPLETED'
-    appendLog(task, 'approved, MRs left unmerged')
-    task.evidenceNote = '审核已通过。平台没有合并 MR。'
+  function retryTask(_id: string, _note: string) {
+    actionError.value = '附说明重试需要 Codex / 执行节点，尚未实现'
   }
 
-  function requestChanges(id: string, note: string) {
-    const task = taskById(id)
-    if (!task || task.status !== 'WAITING_APPROVAL') {
-      return
-    }
-    task.status = 'RUNNING'
-    task.sessionStatus = 'RUNNING'
-    appendLog(task, `changes requested, new session: ${note.trim() || 'no note'}`)
+  function requestChanges(_id: string, _note: string) {
+    actionError.value = '要求修改需要在同一工作区开新 Session，尚未实现'
   }
 
   return {
     scope,
     loading,
     error,
+    actionError,
     retryNote,
     visibleRequirements,
     visibleTasks,
     counts,
     currentUserId: computed(() => auth.user?.userId ?? ''),
     load,
+    loadRequirementDetail,
+    loadTaskDetail,
     requirementById,
     taskById,
     tasksFor,
@@ -266,6 +433,7 @@ export const useWorkbenchStore = defineStore('workbench', () => {
     confirmRequirement,
     addSuggestion,
     removeSuggestion,
+    createTask,
     sendMessage,
     cancelTask,
     retryTask,

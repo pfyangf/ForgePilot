@@ -17,7 +17,11 @@ public class Requirement {
     private String code;
     private String title;
     private String description;
+    private String background;
+    private String scope;
+    private String acceptance;
     private String status;
+    private Boolean statusLocked;
     private String priority;
     private String ownerId;
     private String createdBy;

@@ -41,6 +41,9 @@ const active = computed(() => {
   if (route.path.startsWith('/requirements') || route.path.startsWith('/tasks')) {
     return '/'
   }
+  if (route.path.startsWith('/projects')) {
+    return '/projects'
+  }
   return route.path
 })
 

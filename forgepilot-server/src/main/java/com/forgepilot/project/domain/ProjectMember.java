@@ -16,4 +16,6 @@ public class ProjectMember {
     private String projectId;
     private String userId;
     private Boolean projectAdmin;
+    private String createdBy;
+    private String updatedBy;
 }

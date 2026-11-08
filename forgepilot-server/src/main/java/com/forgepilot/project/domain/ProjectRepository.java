@@ -23,4 +23,6 @@ public class ProjectRepository {
     private String localDirectoryName;
     private String defaultBranch;
     private String externalId;
+    private String createdBy;
+    private String updatedBy;
 }

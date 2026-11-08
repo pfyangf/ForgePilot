@@ -4,7 +4,7 @@ ForgePilot（云端 AI Coding 平台）以需求为入口，调度 AI Agent 在�
 
 一个项目关联多个 Git 仓库。一次任务使用一个工作区目录，平台把这些仓库都检出到该目录里。MVP 的 Agent 运行时是容器内的 Codex CLI。模型长期密钥留在执行节点的代理侧。
 
-当前仓库在 V1.2 基线上：已接通本地用户名/密码登录、JWT 和个人工作台只读接口。Codex、GitLab 和真实执行流程仍未打通。
+当前仓库在 `dev` 分支推进 V1.2：已接通本地登录与 JWT、个人工作台、项目/多仓库、需求、任务创建（冻结仓库集合），以及不依赖 Codex/GitLab 的人工状态迁移。Codex、GitLab 和真实执行流程仍未打通。
 
 ## 文档
 
@@ -18,7 +18,7 @@ ForgePilot（云端 AI Coding 平台）以需求为入口，调度 AI Agent 在�
 
 - `forgepilot-server/`：Spring Boot 3 控制面，包为 `system`、`project`、`execution`、`delivery`。
 - `forgepilot-execution/`：独立进程的执行服务。
-- `forgepilot-web/`：Vue 3 工作台骨架。
+- `forgepilot-web/`：Vue 3 工作台。
 - `docker-compose.yml`：本机 PostgreSQL、Redis、RabbitMQ、MinIO。
 
 ## 构建、测试与运行
@@ -47,15 +47,28 @@ Compose 里的账号口令只用于本机开发：PostgreSQL 和 RabbitMQ 是 `f
 
 ## 本机演示账号
 
-Flyway `V3__local_demo_seed.sql` 写入下列账号，口令均为 `ForgePilot!dev`：
+Flyway `V3__local_demo_seed.sql` 写入下列账号，口令均为 `ForgePilot!dev`。`V4__demo_repositories.sql` 为支付项目补了两条仓库连接。
 
 | 用户名 | 角色 | 说明 |
 | --- | --- | --- |
 | `demo_member` | 成员 | 演示科技「支付」项目成员，用于登录工作台 |
-| `demo_admin` | 租户管理员 | 同一家公司的管理员 |
+| `demo_admin` | 租户管理员 | 同一家公司的管理员，可新建项目 |
 | `platform_admin` | 平台管理员 | 无租户，工作台默认空（不因管理身份跨项目） |
 | `other_member` | 成员 | 另一家公司，用于租户隔离验收 |
 
-## 骨架里还没有的东西
+## 已接通的主要接口
 
-还不启动 Codex，不调用 GitLab，不创建容器，也不保管真实的 Provider 密钥。需求/任务详情页的执行动作仍是前端占位；工作台首页列表与「待我处理」已从控制面加载。
+- `POST /api/v1/auth/login`、`GET /api/v1/me`
+- `GET /api/v1/workbench?scope=waiting|mine|member`
+- `GET|POST /api/v1/projects`，`GET /api/v1/projects/{id}`
+- `GET|POST /api/v1/projects/{id}/repositories`
+- `GET|POST /api/v1/projects/{id}/requirements`
+- `GET /api/v1/requirements/{id}`，`POST /api/v1/requirements/{id}/confirm-analysis`
+- `GET|POST /api/v1/requirements/{id}/tasks`
+- `GET /api/v1/tasks/{id}`，`POST /api/v1/tasks/{id}/cancel|abandon|approve`
+
+创建任务时会把项目当前仓库集合与各仓库基线分支冻结到 `task_repository`。Task 不等于 Session，本阶段不创建 Agent Session。
+
+## 还没有的东西
+
+还不启动 Codex，不调用 GitLab，不创建容器，也不保管真实的 Provider 密钥。详情页里「启动 / 重试 / 要求修改 / 发消息」明确标为未实现，不会假装成功。

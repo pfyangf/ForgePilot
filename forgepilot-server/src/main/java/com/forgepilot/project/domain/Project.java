@@ -26,4 +26,6 @@ public class Project {
     private String buildCommand;
     private String testCommand;
     private Integer verificationTimeoutSeconds;
+    private String createdBy;
+    private String updatedBy;
 }

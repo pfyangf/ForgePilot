@@ -70,4 +70,18 @@ export interface WorkTask {
   verificationLog: string
   verificationExitCode: number | null
   evidenceNote: string
+  frozenRepositories?: Array<{
+    directoryName: string
+    baseBranch: string
+    deliveryState: string
+    cloneUrl: string
+  }>
+  unsupported?: {
+    startOrRetryBlocked: boolean
+    startOrRetryReason: string
+    requestChangesBlocked: boolean
+    requestChangesReason: string
+    retryBlocked: boolean
+    retryReason: string
+  }
 }

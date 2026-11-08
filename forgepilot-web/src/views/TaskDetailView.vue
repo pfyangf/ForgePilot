@@ -1,96 +1,89 @@
 <template>
   <div v-if="task">
     <el-page-header @back="router.push('/')" :content="task.title" />
+    <el-alert v-if="store.actionError" class="block" type="error" show-icon :closable="false" :title="store.actionError" />
     <el-descriptions :column="2" border class="block">
       <el-descriptions-item label="状态">{{ task.status }}</el-descriptions-item>
-      <el-descriptions-item label="会话">{{ task.sessionStatus ?? '无' }}</el-descriptions-item>
+      <el-descriptions-item label="会话">{{ task.sessionStatus ?? '无（Task ≠ Session）' }}</el-descriptions-item>
       <el-descriptions-item label="分支">{{ task.branchName }}</el-descriptions-item>
-      <el-descriptions-item label="模型">{{ task.providerName }} / {{ task.modelId }}</el-descriptions-item>
+      <el-descriptions-item label="项目">{{ task.projectName }}</el-descriptions-item>
       <el-descriptions-item label="Agent">{{ task.agentLabel }}</el-descriptions-item>
-      <el-descriptions-item label="检出">
-        <span v-for="checkout in task.checkouts" :key="checkout.directoryName" class="chip">
-          {{ checkout.directoryName }}{{ checkout.changed ? '（有改动）' : '' }}
-        </span>
-      </el-descriptions-item>
+      <el-descriptions-item label="冻结仓库数">{{ task.frozenRepositories?.length ?? 0 }}</el-descriptions-item>
     </el-descriptions>
     <el-alert class="block" type="warning" show-icon :closable="false" :title="task.evidenceNote" />
+
     <el-card class="block">
-      <template #header>这次会话会拿到的规约</template>
-      <p>平台、公司、项目三层合成。同标题以更具体的一层为准，其余规则都保留。会话开始时冻结，中途改文档不会改已启动的 Agent。</p>
-      <ul>
-        <li>提交说明：公司要求带工单号</li>
-        <li>模块边界：web 不直接访问支付库</li>
-      </ul>
+      <template #header>创建时冻结的仓库集合</template>
+      <el-table :data="task.frozenRepositories || []" empty-text="没有冻结记录">
+        <el-table-column prop="directoryName" label="检出目录" width="160" />
+        <el-table-column prop="baseBranch" label="基线分支" width="140" />
+        <el-table-column prop="deliveryState" label="交付状态" width="120" />
+        <el-table-column prop="cloneUrl" label="地址" />
+      </el-table>
     </el-card>
 
     <el-card v-if="task.status === 'RUNNING'" class="block">
       <template #header>执行中的会话</template>
-      <p>日志是普通文本，不是终端。这个页面也没有编辑器。</p>
-      <pre class="log">{{ task.logs.join('\n') }}</pre>
-      <div v-if="task.sessionStatus === 'WAITING_INPUT' && task.interactiveInput" class="row">
-        <el-input v-model="message" placeholder="发一条消息" />
-        <el-button type="primary" @click="send">发送</el-button>
-      </div>
-      <p v-else>当前适配器不能把消息送进仍在运行的进程。</p>
-      <p v-if="!task.nativePause">未声明原生暂停，不提供从原进程恢复。</p>
+      <el-alert type="info" :closable="false" show-icon :title="task.unsupported?.startOrRetryReason || '执行面尚未接通'" />
+      <pre class="log">{{ task.logs.join('\n') || '没有实时日志（Codex 尚未接通）' }}</pre>
       <div class="row">
-        <el-input v-model="note" placeholder="重试说明，仍使用当前工作区" />
-        <el-button @click="retry">附说明重试</el-button>
-        <el-button type="danger" @click="store.cancelTask(task.id)">取消</el-button>
+        <el-button type="danger" :loading="saving" @click="cancel">取消任务</el-button>
+        <el-button disabled>附说明重试（未实现）</el-button>
       </div>
     </el-card>
 
     <el-card v-else-if="task.status === 'VERIFYING'" class="block">
       <template #header>验证</template>
-      <p>命令在工作区根目录执行：{{ task.verificationCommand }}</p>
-      <p>退出码：{{ task.verificationExitCode === null ? '仍在运行' : task.verificationExitCode }}</p>
-      <pre class="log">{{ task.verificationLog || '等待输出' }}</pre>
+      <el-alert type="info" :closable="false" show-icon title="验证容器尚未接通，这里不会假装已通过。" />
     </el-card>
 
     <el-card v-else-if="task.status === 'WAITING_APPROVAL'" class="block">
       <template #header>任务级审核</template>
-      <p>下面这些 Draft MR 属于同一次审核。没有改动的仓库不会出现在这里。平台不会自动合并。</p>
-      <el-table :data="task.mergeRequests" empty-text="没有 Draft MR">
+      <p>审核通过只把任务标为 COMPLETED，不会自动合并。Draft MR 推送尚未接通，所以这里可能没有真实 MR 链接。</p>
+      <el-table :data="task.mergeRequests" empty-text="还没有 Draft MR（推送未实现）">
         <el-table-column prop="directoryName" label="仓库目录" />
         <el-table-column prop="url" label="MR" />
         <el-table-column prop="headSha" label="Head" width="140" />
       </el-table>
-      <p>未创建 MR 的检出：{{ task.unchangedRepos.join('、') || '无' }}</p>
-      <el-alert v-if="task.testFileChanges.length" type="error" show-icon :closable="false" title="测试文件有改动" :description="task.testFileChanges.join('；')" />
-      <pre class="diff"><span class="diff-del">- export(order)</span>
-<span class="diff-add">+ export(order, repository)</span></pre>
       <div class="row">
-        <el-input v-model="note" placeholder="要求修改时的说明" />
-        <el-button type="primary" @click="store.approveTask(task.id)">审核通过</el-button>
-        <el-button @click="store.requestChanges(task.id, note)">要求修改</el-button>
+        <el-input v-model="note" placeholder="审核说明（可选）" />
+        <el-button type="primary" :loading="saving" @click="approve">审核通过</el-button>
+        <el-button disabled>要求修改（未实现）</el-button>
       </div>
     </el-card>
 
     <el-card v-else-if="task.status === 'WAITING_USER'" class="block">
       <template #header>{{ task.interrupted ? '节点中断' : '等待人工处理' }}</template>
-      <pre class="log">{{ task.verificationLog || task.logs.join('\n') }}</pre>
+      <el-alert type="info" :closable="false" show-icon :title="task.unsupported?.retryReason || '重试需要执行面'" />
       <div class="row">
-        <el-input v-model="note" placeholder="在同一工作区重试的说明" />
-        <el-button type="primary" @click="retry">重试</el-button>
-        <el-button @click="store.cancelTask(task.id)">取消</el-button>
-        <el-button type="danger" @click="store.abandonTask(task.id)">明确放弃</el-button>
+        <el-input v-model="note" placeholder="说明（取消/放弃时可选）" />
+        <el-button disabled>重试（未实现）</el-button>
+        <el-button :loading="saving" @click="cancel">取消</el-button>
+        <el-button type="danger" :loading="saving" @click="abandon">明确放弃</el-button>
       </div>
     </el-card>
 
     <el-card v-else-if="task.status === 'COMPLETED'" class="block">
       <template #header>交付记录</template>
-      <p>任务已完成。关联的 MR 保持打开，平台没有合并。</p>
-      <el-table :data="task.mergeRequests">
-        <el-table-column prop="directoryName" label="仓库目录" />
-        <el-table-column prop="url" label="MR" />
-      </el-table>
-      <pre class="log">{{ task.logs.join('\n') }}</pre>
+      <p>任务已完成。关联的 MR 若存在会保持打开，平台不会合并。</p>
+    </el-card>
+
+    <el-card v-else-if="task.status === 'PENDING' || task.status === 'PREPARING'" class="block">
+      <template #header>待执行</template>
+      <el-alert type="info" :closable="false" show-icon title="启动执行需要 Codex / 执行节点，尚未实现。可以取消任务。" />
+      <div class="row">
+        <el-button disabled>启动（未实现）</el-button>
+        <el-button type="danger" :loading="saving" @click="cancel">取消</el-button>
+      </div>
     </el-card>
 
     <el-card v-else class="block">
       <template #header>证据</template>
-      <p>状态 {{ task.status }}。这里只展示已经收集的说明和日志。</p>
+      <p>状态 {{ task.status }}。这里只展示已经收集的说明。</p>
       <pre class="log">{{ task.logs.join('\n') || '没有日志' }}</pre>
+      <div v-if="task.status !== 'FAILED' && task.status !== 'CANCELLED'" class="row">
+        <el-button type="danger" :loading="saving" @click="cancel">取消</el-button>
+      </div>
     </el-card>
   </div>
   <el-empty v-else description="没有这条任务">
@@ -101,29 +94,58 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
+import { ElMessage } from 'element-plus'
 import { useWorkbenchStore } from '@/stores/workbench'
 
 const props = defineProps<{ id: string }>()
 const store = useWorkbenchStore()
 const router = useRouter()
 const task = computed(() => store.taskById(props.id))
+const note = ref('')
+const saving = ref(false)
 
-onMounted(() => {
-  if (!task.value) {
-    void store.load('member')
+onMounted(async () => {
+  try {
+    await store.loadTaskDetail(props.id)
+  } catch {
+    await store.load('member')
   }
 })
-const message = ref('')
-const note = ref('')
 
-function send() {
-  store.sendMessage(props.id, message.value)
-  message.value = ''
+async function cancel() {
+  saving.value = true
+  try {
+    await store.cancelTask(props.id, note.value)
+    ElMessage.success('任务已取消')
+  } catch (err) {
+    ElMessage.error(err instanceof Error ? err.message : '取消失败')
+  } finally {
+    saving.value = false
+  }
 }
 
-function retry() {
-  store.retryTask(props.id, note.value)
-  note.value = ''
+async function abandon() {
+  saving.value = true
+  try {
+    await store.abandonTask(props.id, note.value)
+    ElMessage.success('已明确放弃')
+  } catch (err) {
+    ElMessage.error(err instanceof Error ? err.message : '操作失败')
+  } finally {
+    saving.value = false
+  }
+}
+
+async function approve() {
+  saving.value = true
+  try {
+    await store.approveTask(props.id, note.value)
+    ElMessage.success('审核已通过')
+  } catch (err) {
+    ElMessage.error(err instanceof Error ? err.message : '审核失败')
+  } finally {
+    saving.value = false
+  }
 }
 </script>
 
@@ -135,8 +157,5 @@ function retry() {
   display: flex;
   gap: 8px;
   margin-top: 12px;
-}
-.chip {
-  margin-right: 8px;
 }
 </style>

@@ -5,6 +5,8 @@ import DeliveryListView from '@/views/DeliveryListView.vue'
 import GuidanceView from '@/views/GuidanceView.vue'
 import LoginView from '@/views/LoginView.vue'
 import PlaceholderView from '@/views/PlaceholderView.vue'
+import ProjectDetailView from '@/views/ProjectDetailView.vue'
+import ProjectsView from '@/views/ProjectsView.vue'
 import RequirementDetailView from '@/views/RequirementDetailView.vue'
 import TaskDetailView from '@/views/TaskDetailView.vue'
 import WorkbenchView from '@/views/WorkbenchView.vue'
@@ -17,7 +19,8 @@ const router = createRouter({
     { path: '/', name: 'workbench', component: WorkbenchView },
     { path: '/requirements/:id', name: 'requirement', component: RequirementDetailView, props: true },
     { path: '/tasks/:id', name: 'task', component: TaskDetailView, props: true },
-    { path: '/projects', name: 'projects', component: PlaceholderView, meta: { title: '项目管理', note: '项目属于一家公司，并关联多条仓库。任务启动时冻结这组仓库和各仓库自己的基线分支。' } },
+    { path: '/projects', name: 'projects', component: ProjectsView },
+    { path: '/projects/:id', name: 'project-detail', component: ProjectDetailView, props: true },
     {
       path: '/guidance',
       name: 'guidance',
