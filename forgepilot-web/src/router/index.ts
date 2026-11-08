@@ -4,6 +4,7 @@ import CodingListView from '@/views/CodingListView.vue'
 import DeliveryListView from '@/views/DeliveryListView.vue'
 import GuidanceView from '@/views/GuidanceView.vue'
 import LoginView from '@/views/LoginView.vue'
+import CatalogView from '@/views/CatalogView.vue'
 import PlaceholderView from '@/views/PlaceholderView.vue'
 import ProjectDetailView from '@/views/ProjectDetailView.vue'
 import ProjectsView from '@/views/ProjectsView.vue'
@@ -21,15 +22,8 @@ const router = createRouter({
     { path: '/tasks/:id', name: 'task', component: TaskDetailView, props: true },
     { path: '/projects', name: 'projects', component: ProjectsView },
     { path: '/projects/:id', name: 'project-detail', component: ProjectDetailView, props: true },
-    {
-      path: '/guidance',
-      name: 'guidance',
-      component: GuidanceView,
-      meta: {
-        title: '规约与文档',
-        note: '平台、公司、项目三层。这不是文档库或知识库检索。只有对应管理员能改自己那一层。',
-      },
-    },
+    { path: '/guidance', name: 'guidance', component: GuidanceView },
+    { path: '/catalog', name: 'catalog', component: CatalogView },
     { path: '/activity', name: 'activity', component: ActivityView },
     { path: '/coding', name: 'coding', component: CodingListView },
     { path: '/delivery', name: 'delivery', component: DeliveryListView },
@@ -39,7 +33,7 @@ const router = createRouter({
       component: PlaceholderView,
       meta: {
         title: '平台管理',
-        note: '模型目录由控制面维护。骨架上的 /api/v1/model-providers 返回 501，响应里没有密钥。',
+        note: '平台级入口。公司模型/工具目录请到「模型与工具」；平台规约在「规约与文档」里用平台层维护。',
       },
     },
   ],

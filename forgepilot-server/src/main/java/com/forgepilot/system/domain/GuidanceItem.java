@@ -20,6 +20,10 @@ public class GuidanceItem {
     private String title;
     private String category;
     private String body;
+    private String objectKey;
     private Boolean enabled;
     private Boolean includeInAgent;
+    private String contentHash;
+    private String createdBy;
+    private String updatedBy;
 }

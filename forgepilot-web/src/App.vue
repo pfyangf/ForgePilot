@@ -9,6 +9,7 @@
         <el-menu-item index="/coding">AI Coding</el-menu-item>
         <el-menu-item index="/delivery">测试与交付</el-menu-item>
         <el-menu-item index="/guidance">规约与文档</el-menu-item>
+        <el-menu-item index="/catalog">模型与工具</el-menu-item>
         <el-menu-item index="/activity">操作记录</el-menu-item>
         <el-menu-item index="/admin">平台管理</el-menu-item>
       </el-menu>

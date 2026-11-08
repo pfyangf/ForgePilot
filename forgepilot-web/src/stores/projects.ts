@@ -11,6 +11,9 @@ export interface ProjectSummary {
   techStack: string | null
   status: string
   feedbackLimit: number | null
+  defaultAgentProfileId?: string | null
+  defaultModelProviderId?: string | null
+  defaultModelId?: string | null
 }
 
 export interface RepositorySummary {

@@ -4,6 +4,7 @@ import com.forgepilot.project.service.ProjectService;
 import com.forgepilot.project.service.ProjectService.ProjectDetailView;
 import com.forgepilot.project.service.ProjectService.ProjectView;
 import com.forgepilot.project.service.ProjectService.RepositoryView;
+import com.forgepilot.project.service.ProjectService.UpdateDefaultsRequest;
 import com.forgepilot.project.service.RequirementService;
 import com.forgepilot.project.service.RequirementService.RequirementView;
 import com.forgepilot.system.security.AuthContext;
@@ -11,6 +12,7 @@ import jakarta.validation.Valid;
 import java.util.List;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -41,6 +43,13 @@ public class ProjectController {
     @GetMapping("/{projectId}")
     public ProjectDetailView get(@PathVariable String projectId) {
         return projectService.get(AuthContext.require(), projectId);
+    }
+
+
+    @PatchMapping("/{projectId}/defaults")
+    public ProjectView updateDefaults(
+            @PathVariable String projectId, @RequestBody UpdateDefaultsRequest request) {
+        return projectService.updateDefaults(AuthContext.require(), projectId, request);
     }
 
     @GetMapping("/{projectId}/repositories")

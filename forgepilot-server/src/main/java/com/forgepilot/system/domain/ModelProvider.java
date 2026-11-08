@@ -25,4 +25,6 @@ public class ModelProvider {
     private String apiVersion;
     private String upstreamWireApi;
     private String translationGateway;
+    private String createdBy;
+    private String updatedBy;
 }

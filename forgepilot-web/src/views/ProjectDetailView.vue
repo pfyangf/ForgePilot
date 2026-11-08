@@ -10,6 +10,25 @@
     </el-descriptions>
 
     <el-card class="block">
+      <template #header>项目默认工具与模型</template>
+      <el-form label-width="120px" inline>
+        <el-form-item label="默认工具 ID">
+          <el-input v-model="defaultsForm.defaultAgentProfileId" style="width: 280px" placeholder="coding-tools id" />
+        </el-form-item>
+        <el-form-item label="默认 Provider">
+          <el-input v-model="defaultsForm.defaultModelProviderId" style="width: 280px" placeholder="model-providers id" />
+        </el-form-item>
+        <el-form-item label="默认模型">
+          <el-input v-model="defaultsForm.defaultModelId" style="width: 160px" />
+        </el-form-item>
+        <el-form-item>
+          <el-button type="primary" :loading="saving" @click="saveDefaults">保存默认值</el-button>
+        </el-form-item>
+      </el-form>
+      <p class="hint">当前：工具 {{ store.detail.project.defaultAgentProfileId || '无' }} / Provider {{ store.detail.project.defaultModelProviderId || '无' }} / 模型 {{ store.detail.project.defaultModelId || '无' }}</p>
+    </el-card>
+
+    <el-card class="block">
       <template #header>
         <div class="row-between">
           <span>关联仓库</span>
@@ -101,6 +120,7 @@
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
+import { apiFetch } from '@/api/http'
 import { useProjectsStore } from '@/stores/projects'
 
 const props = defineProps<{ id: string }>()
@@ -125,9 +145,39 @@ const reqForm = reactive({
   description: '',
   priority: 'MEDIUM',
 })
+const defaultsForm = reactive({
+  defaultAgentProfileId: '',
+  defaultModelProviderId: '',
+  defaultModelId: '',
+})
 
 async function refresh() {
   await store.loadDetail(props.id)
+  if (store.detail) {
+    defaultsForm.defaultAgentProfileId = store.detail.project.defaultAgentProfileId || ''
+    defaultsForm.defaultModelProviderId = store.detail.project.defaultModelProviderId || ''
+    defaultsForm.defaultModelId = store.detail.project.defaultModelId || ''
+  }
+}
+
+async function saveDefaults() {
+  saving.value = true
+  try {
+    await apiFetch(`/api/v1/projects/${props.id}/defaults`, {
+      method: 'PATCH',
+      body: JSON.stringify({
+        defaultAgentProfileId: defaultsForm.defaultAgentProfileId || null,
+        defaultModelProviderId: defaultsForm.defaultModelProviderId || null,
+        defaultModelId: defaultsForm.defaultModelId || null,
+      }),
+    })
+    ElMessage.success('默认值已保存')
+    await refresh()
+  } catch (err) {
+    ElMessage.error(err instanceof Error ? err.message : '保存失败')
+  } finally {
+    saving.value = false
+  }
 }
 
 onMounted(() => {
@@ -201,5 +251,9 @@ async function addRequirement() {
   display: flex;
   justify-content: space-between;
   align-items: center;
+}
+.hint {
+  color: #64748b;
+  margin: 0;
 }
 </style>

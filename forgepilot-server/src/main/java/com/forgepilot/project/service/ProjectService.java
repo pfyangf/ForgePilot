@@ -207,7 +207,51 @@ public class ProjectService {
                 project.getDescription(),
                 project.getTechStack(),
                 project.getStatus(),
-                project.getFeedbackLimit());
+                project.getFeedbackLimit(),
+                project.getDefaultAgentProfileId(),
+                project.getDefaultModelProviderId(),
+                project.getDefaultModelId());
+    }
+
+    @Transactional
+    public ProjectView updateDefaults(AuthUser user, String projectId, UpdateDefaultsRequest request) {
+        Project project = projectAccess.requireProjectAdmin(user, projectId);
+        if (request.defaultAgentProfileId() != null) {
+            project.setDefaultAgentProfileId(blankToNull(request.defaultAgentProfileId()));
+        }
+        if (request.defaultModelProviderId() != null) {
+            project.setDefaultModelProviderId(blankToNull(request.defaultModelProviderId()));
+        }
+        if (request.defaultModelId() != null) {
+            project.setDefaultModelId(blankToNull(request.defaultModelId()));
+        }
+        project.setUpdatedBy(user.userId());
+        projectMapper.updateById(project);
+        activityLogRecorder.record(
+                user.tenantId(),
+                "USER",
+                user.userId(),
+                "PROJECT_DEFAULTS_UPDATE",
+                "PROJECT",
+                projectId,
+                projectId,
+                null,
+                null,
+                null,
+                "更新项目默认工具与模型",
+                Map.of(
+                        "defaultAgentProfileId",
+                        project.getDefaultAgentProfileId() == null ? "" : project.getDefaultAgentProfileId(),
+                        "defaultModelProviderId",
+                        project.getDefaultModelProviderId() == null ? "" : project.getDefaultModelProviderId(),
+                        "defaultModelId",
+                        project.getDefaultModelId() == null ? "" : project.getDefaultModelId()),
+                "SUCCESS");
+        return toView(project);
+    }
+
+    public record UpdateDefaultsRequest(
+            String defaultAgentProfileId, String defaultModelProviderId, String defaultModelId) {
     }
 
     private RepositoryView toRepoView(ProjectRepository repo) {
@@ -237,7 +281,10 @@ public class ProjectService {
             String description,
             String techStack,
             String status,
-            Integer feedbackLimit) {
+            Integer feedbackLimit,
+            String defaultAgentProfileId,
+            String defaultModelProviderId,
+            String defaultModelId) {
     }
 
     public record RepositoryView(

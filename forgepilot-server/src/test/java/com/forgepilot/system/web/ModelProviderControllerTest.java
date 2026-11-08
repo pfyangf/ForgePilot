@@ -1,26 +1,32 @@
 package com.forgepilot.system.web;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.forgepilot.system.service.ModelProviderCatalogService.ProviderView;
 import org.junit.jupiter.api.Test;
-import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 class ModelProviderControllerTest {
 
-    private final MockMvc mvc = MockMvcBuilders.standaloneSetup(new ModelProviderController()).build();
-
     @Test
-    void catalogRoutesAreNotImplementedAndDoNotReturnSecrets() throws Exception {
-        var body = mvc.perform(get("/api/v1/model-providers"))
-                .andExpect(status().isNotImplemented())
-                .andReturn()
-                .getResponse()
-                .getContentAsString();
-        assertThat(body).doesNotContain("apiKey").doesNotContain("sk-");
-        mvc.perform(delete("/api/v1/model-providers")).andExpect(status().isNotImplemented());
+    void providerViewContractNeverCarriesSecretFields() {
+        ProviderView view = new ProviderView(
+                "p1",
+                "t1",
+                "local",
+                "OPENAI_COMPAT",
+                "http://127.0.0.1/v1",
+                true,
+                null,
+                "responses",
+                null,
+                true,
+                false,
+                true,
+                false);
+        assertThat(view.hasSecret()).isTrue();
+        assertThat(view.getClass().getRecordComponents())
+                .extracting(c -> c.getName())
+                .doesNotContain("apiKey", "secretId", "ciphertext", "password");
+        assertThat(view.toString()).doesNotContain("sk-").doesNotContain("ciphertext");
     }
 }
