@@ -1,8 +1,5 @@
 package com.forgepilot.exec.node;
 
-import org.springframework.stereotype.Component;
-
-@Component
 public class StubNodeRegistration implements NodeRegistrationPort {
 
     @Override

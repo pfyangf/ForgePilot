@@ -1,14 +1,9 @@
 package com.forgepilot.exec.web;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.forgepilot.exec.model.InMemoryModelSessionProxy;
 import com.forgepilot.exec.model.InMemoryModelSessionProxy.SessionEntry;
 import com.forgepilot.exec.model.InMemoryModelSessionProxy.UnauthorizedProxyException;
-import java.net.URI;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
-import java.time.Duration;
+import com.forgepilot.exec.model.UpstreamResponsesClient;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -21,26 +16,22 @@ import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-/**
- * OpenAI Responses API 兼容表面。Agent 只应调用本接口；Chat Completions 不是 Agent 面向协议。
- */
 @RestController
 @RequestMapping("/v1")
 public class ModelProxyController {
 
     private final InMemoryModelSessionProxy proxy;
-    private final ObjectMapper objectMapper;
-    private final HttpClient httpClient = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build();
+    private final UpstreamResponsesClient upstreamResponsesClient;
 
-    public ModelProxyController(InMemoryModelSessionProxy proxy, ObjectMapper objectMapper) {
+    public ModelProxyController(InMemoryModelSessionProxy proxy, UpstreamResponsesClient upstreamResponsesClient) {
         this.proxy = proxy;
-        this.objectMapper = objectMapper;
+        this.upstreamResponsesClient = upstreamResponsesClient;
     }
 
     @PostMapping("/responses")
     public ResponseEntity<?> responses(
             @RequestHeader(value = "Authorization", required = false) String authorization,
-            @RequestBody(required = false) Map<String, Object> body) throws Exception {
+            @RequestBody(required = false) Map<String, Object> body) {
         SessionEntry session = proxy.requireValidToken(authorization);
         if (session.upstreamBaseUrl() == null
                 || session.upstreamBaseUrl().isBlank()
@@ -53,6 +44,7 @@ public class ModelProxyController {
             stub.put("status", "completed");
             stub.put("model", session.modelId());
             stub.put("wire_api", InMemoryModelSessionProxy.WIRE_API);
+            stub.put("mode", "stub");
             stub.put(
                     "output",
                     List.of(Map.of(
@@ -65,24 +57,19 @@ public class ModelProxyController {
                                     "type",
                                     "output_text",
                                     "text",
-                                    "ForgePilot local model proxy accepted Responses request for session "
+                                    "ForgePilot local model proxy stub for session "
                                             + session.sessionId()
-                                            + ". Upstream provider key is not configured for live calls.")))));
+                                            + ". Upstream key missing or PLACEHOLDER_*.")))));
+            // never echo api key
             return ResponseEntity.ok(stub);
         }
-        String base = session.upstreamBaseUrl().replaceAll("/$", "");
-        if (!base.endsWith("/v1")) {
-            base = base + "/v1";
+        var upstream = upstreamResponsesClient.postResponses(
+                session.upstreamBaseUrl(), session.upstreamApiKey(), body);
+        String responseBody = upstream.body() == null ? "" : upstream.body();
+        if (session.upstreamApiKey() != null && responseBody.contains(session.upstreamApiKey())) {
+            responseBody = responseBody.replace(session.upstreamApiKey(), "***");
         }
-        String target = base + "/responses";
-        HttpRequest request = HttpRequest.newBuilder(URI.create(target))
-                .timeout(Duration.ofSeconds(60))
-                .header("Authorization", "Bearer " + session.upstreamApiKey())
-                .header("Content-Type", "application/json")
-                .POST(HttpRequest.BodyPublishers.ofString(objectMapper.writeValueAsString(body == null ? Map.of() : body)))
-                .build();
-        HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-        return ResponseEntity.status(response.statusCode()).body(response.body());
+        return ResponseEntity.status(upstream.statusCode()).body(responseBody);
     }
 
     @PostMapping("/chat/completions")

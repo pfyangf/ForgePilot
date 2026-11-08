@@ -20,6 +20,7 @@ import com.forgepilot.execution.persistence.TaskRepositoryFreezeMapper;
 import com.forgepilot.execution.persistence.TaskStateHistoryMapper;
 import com.forgepilot.execution.persistence.WorkspaceMapper;
 import com.forgepilot.execution.runtime.AgentRuntimePort;
+import com.forgepilot.execution.stream.SessionLogStream;
 import com.forgepilot.execution.web.TaskActionRequest;
 import com.forgepilot.project.domain.Project;
 import com.forgepilot.project.domain.ProjectRepository;
@@ -77,6 +78,8 @@ public class TaskSessionService {
     private final MultiRepoWorkspaceCheckout workspaceCheckout;
     private final AgentRuntimePort agentRuntimePort;
     private final ActivityLogRecorder activityLogRecorder;
+    private final NodeRegistryService nodeRegistryService;
+    private final SessionLogStream sessionLogStream;
     private final String storageRoot;
 
     public TaskSessionService(
@@ -96,6 +99,8 @@ public class TaskSessionService {
             MultiRepoWorkspaceCheckout workspaceCheckout,
             AgentRuntimePort agentRuntimePort,
             ActivityLogRecorder activityLogRecorder,
+            NodeRegistryService nodeRegistryService,
+            SessionLogStream sessionLogStream,
             @Value("${forgepilot.workspace.storage-root:${java.io.tmpdir}/forgepilot-workspaces}") String storageRoot) {
         this.codingTaskMapper = codingTaskMapper;
         this.agentSessionMapper = agentSessionMapper;
@@ -113,6 +118,8 @@ public class TaskSessionService {
         this.workspaceCheckout = workspaceCheckout;
         this.agentRuntimePort = agentRuntimePort;
         this.activityLogRecorder = activityLogRecorder;
+        this.nodeRegistryService = nodeRegistryService;
+        this.sessionLogStream = sessionLogStream;
         this.storageRoot = storageRoot;
     }
 
@@ -280,7 +287,8 @@ public class TaskSessionService {
         session.setStatus("STARTING");
         session.setModelProviderId(provider.getId());
         session.setModelId(selection.modelId());
-        session.setNodeId(TaskVerifyDeliveryService.LOCAL_NODE_ID);
+        var liveNode = nodeRegistryService.pickLiveNode();
+        session.setNodeId(liveNode == null ? TaskVerifyDeliveryService.LOCAL_NODE_ID : liveNode.getId());
         session.setWorkspaceId(workspace.getId());
         session.setStartedAt(Instant.now());
         session.setLastEventSeq(0L);
@@ -359,6 +367,7 @@ public class TaskSessionService {
                     "Session 启动失败（" + runtime.errorCode() + "）：" + runtime.errorMessage(),
                     user.userId());
             // 绝不标 COMPLETED / 不假装编码成功
+            sessionLogStream.append(session.getId(), runtime.errorMessage());
             return toResult(task, session, runtime.errorMessage(), List.of());
         }
 
@@ -382,6 +391,9 @@ public class TaskSessionService {
         codingTaskMapper.updateById(task);
         recordHistory(task.getId(), "PREPARING", "RUNNING", "Session 进入 RUNNING", user.userId());
         List<String> logs = agentRuntimePort.tailLogs(session.getId(), 100);
+        for (String line : logs) {
+            sessionLogStream.append(session.getId(), line);
+        }
         return toResult(task, session, "Session 已启动", logs);
     }
 

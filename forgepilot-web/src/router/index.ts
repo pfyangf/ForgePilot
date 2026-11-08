@@ -6,6 +6,7 @@ import GuidanceView from '@/views/GuidanceView.vue'
 import LoginView from '@/views/LoginView.vue'
 import CatalogView from '@/views/CatalogView.vue'
 import PlaceholderView from '@/views/PlaceholderView.vue'
+import NodesView from '@/views/NodesView.vue'
 import ProjectDetailView from '@/views/ProjectDetailView.vue'
 import ProjectsView from '@/views/ProjectsView.vue'
 import RequirementDetailView from '@/views/RequirementDetailView.vue'
@@ -27,13 +28,14 @@ const router = createRouter({
     { path: '/activity', name: 'activity', component: ActivityView },
     { path: '/coding', name: 'coding', component: CodingListView },
     { path: '/delivery', name: 'delivery', component: DeliveryListView },
+    { path: '/nodes', name: 'nodes', component: NodesView },
     {
       path: '/admin',
       name: 'admin',
       component: PlaceholderView,
       meta: {
         title: '平台管理',
-        note: '平台级入口。公司模型/工具目录请到「模型与工具」；平台规约在「规约与文档」里用平台层维护。',
+        note: '平台级入口。公司模型/工具目录请到「模型与工具」；平台规约在「规约与文档」里用平台层维护。节点状态见「执行节点」。',
       },
     },
   ],

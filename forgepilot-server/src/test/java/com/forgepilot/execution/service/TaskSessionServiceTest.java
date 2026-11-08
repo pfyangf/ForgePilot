@@ -27,6 +27,8 @@ import com.forgepilot.execution.persistence.TaskRepositoryFreezeMapper;
 import com.forgepilot.execution.persistence.TaskStateHistoryMapper;
 import com.forgepilot.execution.persistence.WorkspaceMapper;
 import com.forgepilot.execution.runtime.AgentRuntimePort;
+import com.forgepilot.execution.stream.InMemorySessionLogStream;
+import com.forgepilot.execution.persistence.ExecutionNodeMapper;
 import com.forgepilot.execution.web.TaskActionRequest;
 import com.forgepilot.project.domain.Project;
 import com.forgepilot.project.domain.ProjectRepository;
@@ -71,6 +73,7 @@ class TaskSessionServiceTest {
     private final GuidanceService guidanceService = mock(GuidanceService.class);
     private final AgentRuntimePort agentRuntimePort = mock(AgentRuntimePort.class);
     private final ActivityLogRecorder recorder = mock(ActivityLogRecorder.class);
+    private final ExecutionNodeMapper executionNodeMapper = mock(ExecutionNodeMapper.class);
 
     private TaskSessionService service;
     private Path remote;
@@ -97,7 +100,10 @@ class TaskSessionServiceTest {
                 new MultiRepoWorkspaceCheckout(git),
                 agentRuntimePort,
                 recorder,
+                new NodeRegistryService(executionNodeMapper, codingTaskMapper, recorder, 45),
+                new InMemorySessionLogStream(),
                 temp.resolve("storage").toString());
+        when(executionNodeMapper.selectList(any(LambdaQueryWrapper.class))).thenReturn(List.of());
 
         Project project = new Project();
         project.setId("p1");

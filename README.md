@@ -4,7 +4,7 @@ ForgePilot（云端 AI Coding 平台）以需求为入口，调度 AI Agent 在�
 
 一个项目关联多个 Git 仓库。一次任务使用一个工作区目录，平台把这些仓库都检出到该目录里。MVP 的 Agent 运行时是容器内的 Codex CLI。模型长期密钥留在执行节点的代理侧。
 
-当前仓库在 `dev` 分支推进 V1.2：已接通本地登录与 JWT、个人工作台、项目/多仓库、需求、任务、模型/编码工具目录、三层规约与合成快照、操作记录查询与日报，以及 GitHostingPort（GitLab 适配器）、冻结多仓工作区检出、本机验证 runner 与平台 Draft MR 交付，Agent Session 生命周期、执行侧 Responses 模型代理与 Codex CLI 适配器（无 `codex` 时 `NOT_AVAILABLE`，不假装成功）。容器化沙箱与真实上游模型调用仍可继续加深。
+当前仓库在 `dev` 分支推进 V1.2：已接通本地登录与 JWT、个人工作台、项目/多仓库、需求、任务、模型/编码工具目录、三层规约与合成快照、操作记录查询与日报，以及 GitHostingPort、多仓检出、验证/Draft MR 交付、Agent Session、Responses 模型代理（含真实上游转发/占位 stub）、Codex CLI 适配器、执行节点注册/心跳/排队、ContainerRuntime（Fake+可选 Docker）、Session 高频日志流（Redis/内存）。无 `codex` 时不假装编码成功。
 
 ## 文档
 
@@ -68,6 +68,7 @@ Flyway `V3__local_demo_seed.sql` 写入下列账号，口令均为 `ForgePilot!d
 - `GET /api/v1/tasks/{id}`，`POST /api/v1/tasks/{id}/cancel|abandon|approve`
 - `POST /api/v1/tasks/{id}/verify`、`POST /api/v1/tasks/{id}/retry-delivery`（冻结仓检出 + 工作区根命令验证 + 有改动仓库推送 `fp/{taskId}` / Draft MR；不假装 Codex）
 - `POST /api/v1/tasks/{id}/start|retry|input|request-changes`，`GET /api/v1/tasks/{id}/session`（Task ≠ Session；规约快照；执行侧 `/v1/responses` 代理）
+- `GET /api/v1/nodes`，`POST /api/v1/internal/nodes/register|heartbeat|assign-next`；Session 日志 `GET .../sessions/{sid}/logs`（Redis Stream，失败回退内存；SSE 可选）
 - `GET|POST|PUT /api/v1/model-providers`（响应含 `hasSecret`，从不返回 apiKey）
 - `GET|POST|PUT /api/v1/coding-tools`
 - `GET|POST|PUT /api/v1/guidance`，`GET /api/v1/projects/{id}/conventions/effective`，`POST .../conventions/snapshots`
@@ -78,7 +79,7 @@ Flyway `V5` 为演示科技写入了本地占位 Provider/Codex 工具和三层�
 
 ## 还没有的东西
 
-容器化 Agent/验证沙箱（`ContainerRuntime` 仅端口）、节点心跳调度、Redis 高频日志流、真实上游模型转发（无 Provider 密钥时代理返回受控 stub）。本机无 `codex` 时 start 返回 `NOT_AVAILABLE` 并进入 `WAITING_USER`，不会把任务标为完成。长期密钥留在控制面密文库 / 执行侧代理内存，只把会话短时令牌给 Agent；Git 令牌不进 remote URL。
+本机无 `codex` 时 start 返回 `NOT_AVAILABLE` 并进入 `WAITING_USER`，不会把任务标为完成。长期密钥留在控制面密文库 / 执行侧代理内存，只把会话短时令牌给 Agent；Git 令牌不进 remote URL。Docker daemon 非测试依赖（有 `RecordingFakeContainerRuntime`）；真实 Docker 实现可选。
 
 ## 隔离约定（MVP）
 

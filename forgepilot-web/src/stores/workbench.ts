@@ -312,15 +312,27 @@ export const useWorkbenchStore = defineStore('workbench', () => {
         : '平台验证/交付与 Session 启动已接通；无 Codex 时 start 返回 NOT_AVAILABLE，不会假装编码完成。'
     try {
       const session = await apiFetch<{
+        id: string
         status: string
         logs: string[]
         errorSummary?: string
-      } | null>(`/api/v1/tasks/${id}/session`)
+      }>(`/api/v1/tasks/${id}/session`)
       if (session) {
         mapped.sessionStatus = session.status
         mapped.logs = session.logs || mapped.logs
         if (session.errorSummary) {
           mapped.logs = [session.errorSummary, ...mapped.logs]
+        }
+        try {
+          const stream = await apiFetch<{ chunks: Array<{ seq: number; body: string }> }>(
+            `/api/v1/tasks/${id}/sessions/${session.id}/logs?afterSeq=0&limit=200`,
+          )
+          const extra = (stream.chunks || []).map((c) => c.body)
+          if (extra.length) {
+            mapped.logs = [...extra, ...mapped.logs]
+          }
+        } catch {
+          // stream optional
         }
       }
     } catch {

@@ -45,6 +45,7 @@ forgepilot:
     endpoint: ${FORGEPILOT_MINIO_ENDPOINT:http://localhost:9000}
   execution:
     base-url: ${FORGEPILOT_EXECUTION_URL:http://localhost:8081}
+    heartbeat-timeout-seconds: ${FORGEPILOT_NODE_HEARTBEAT_TIMEOUT:45}
   internal-api:
     # 面向执行面的身份由部署环境注入，不复用用户 JWT，也不在仓库里放共享密钥。
     configured: false

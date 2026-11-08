@@ -32,4 +32,5 @@ public class CodingTask {
     private String modelId;
     private String predecessorTaskId;
     private String createdBy;
+    private java.time.Instant queuedAt;
 }

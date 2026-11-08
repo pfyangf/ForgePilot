@@ -31,3 +31,9 @@ forgepilot:
       - REDIS
       - MINIO
       - FORGEPILOT_JWT
+
+  node:
+    key: ${FORGEPILOT_NODE_KEY:local-exec-1}
+    capacity: ${FORGEPILOT_NODE_CAPACITY:4}
+  internal-api:
+    token: ${FORGEPILOT_INTERNAL_TOKEN:}

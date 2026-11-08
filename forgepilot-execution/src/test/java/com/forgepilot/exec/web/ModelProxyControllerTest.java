@@ -5,9 +5,11 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.forgepilot.exec.model.InMemoryModelSessionProxy;
 import com.forgepilot.exec.model.ModelSessionProxy;
+import com.forgepilot.exec.model.UpstreamResponsesClient;
+import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.MediaType;
@@ -18,36 +20,54 @@ class ModelProxyControllerTest {
 
     private MockMvc mockMvc;
     private InMemoryModelSessionProxy proxy;
+    private AtomicReference<String> forwardedKey;
 
     @BeforeEach
     void setUp() {
         proxy = new InMemoryModelSessionProxy("127.0.0.1", 8081, 3600);
-        mockMvc = MockMvcBuilders.standaloneSetup(new ModelProxyController(proxy, new ObjectMapper())).build();
+        forwardedKey = new AtomicReference<>();
+        UpstreamResponsesClient upstream = (baseUrl, apiKey, body) -> {
+            forwardedKey.set(apiKey);
+            return new UpstreamResponsesClient.UpstreamResponse(
+                    200, "{\"object\":\"response\",\"wire_api\":\"responses\",\"echo\":true}");
+        };
+        mockMvc = MockMvcBuilders.standaloneSetup(new ModelProxyController(proxy, upstream)).build();
     }
 
     @Test
-    void responsesRequiresTokenAndRejectsChatCompletions() throws Exception {
+    void stubWhenPlaceholderAndForwardWhenRealKeyWithoutLeaking() throws Exception {
         mockMvc.perform(post("/v1/responses").contentType(MediaType.APPLICATION_JSON).content("{}"))
                 .andExpect(status().isUnauthorized());
 
-        var cred = proxy.issue(new ModelSessionProxy.ModelSessionRequest(
-                "sess", "p", "m", null, null, "responses"));
-        mockMvc.perform(post("/v1/responses")
-                        .header("Authorization", "Bearer " + cred.shortLivedToken())
+        var stubCred = proxy.issue(new ModelSessionProxy.ModelSessionRequest(
+                "sess-stub", "p", "m", "https://api.openai.com/v1", "PLACEHOLDER_KEY", "responses"));
+        String stubBody = mockMvc.perform(post("/v1/responses")
+                        .header("Authorization", "Bearer " + stubCred.shortLivedToken())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"model\":\"m\"}"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.wire_api").value("responses"));
+                .andExpect(jsonPath("$.mode").value("stub"))
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+        assertThat(stubBody).doesNotContain("PLACEHOLDER_KEY");
+        assertThat(forwardedKey.get()).isNull();
+
+        var liveCred = proxy.issue(new ModelSessionProxy.ModelSessionRequest(
+                "sess-live", "p", "m", "https://api.openai.com/v1", "sk-live-secret", "responses"));
+        String liveBody = mockMvc.perform(post("/v1/responses")
+                        .header("Authorization", "Bearer " + liveCred.shortLivedToken())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"model\":\"m\"}"))
+                .andExpect(status().isOk())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+        assertThat(forwardedKey.get()).isEqualTo("sk-live-secret");
+        assertThat(liveBody).doesNotContain("sk-live-secret");
+        assertThat(liveBody).contains("responses");
 
         mockMvc.perform(post("/v1/chat/completions").contentType(MediaType.APPLICATION_JSON).content("{}"))
                 .andExpect(status().isNotImplemented());
-
-        proxy.revoke("sess");
-        mockMvc.perform(post("/v1/responses")
-                        .header("Authorization", "Bearer " + cred.shortLivedToken())
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{}"))
-                .andExpect(status().isUnauthorized());
-        assertThat(cred.shortLivedToken()).doesNotContain("PLACEHOLDER");
     }
 }
