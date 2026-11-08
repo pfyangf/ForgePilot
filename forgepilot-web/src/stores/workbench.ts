@@ -159,12 +159,12 @@ function toTask(item: ApiTask): WorkTask {
     evidenceNote: '执行、验证、推送 MR 尚未接通。可做的人工动作会走真实接口。',
     frozenRepositories: [],
     unsupported: {
-      startOrRetryBlocked: true,
-      startOrRetryReason: 'Codex / 执行节点尚未接通',
-      requestChangesBlocked: true,
-      requestChangesReason: '要求修改需要新 Session，尚未实现',
-      retryBlocked: true,
-      retryReason: '附说明重试需要执行面，尚未实现',
+      startOrRetryBlocked: false,
+      startOrRetryReason: '可通过 start 启动 Session',
+      requestChangesBlocked: false,
+      requestChangesReason: '可通过 request-changes 开新 Session',
+      retryBlocked: false,
+      retryReason: '可通过 retry 在同一工作区开新 Session',
     },
   }
 }
@@ -309,7 +309,23 @@ export const useWorkbenchStore = defineStore('workbench', () => {
       detail.task.status === 'WAITING_APPROVAL'
         ? '审核通过只改任务状态，不会自动合并。Draft MR 由平台 verify/retry-delivery 创建。' +
           (detail.testFileChangeHook ? ` 测试文件变更钩子：${detail.testFileChangeHook}` : '')
-        : '平台验证/交付已接通；Codex Agent / Session / 模型代理 / 容器验证仍未实现。'
+        : '平台验证/交付与 Session 启动已接通；无 Codex 时 start 返回 NOT_AVAILABLE，不会假装编码完成。'
+    try {
+      const session = await apiFetch<{
+        status: string
+        logs: string[]
+        errorSummary?: string
+      } | null>(`/api/v1/tasks/${id}/session`)
+      if (session) {
+        mapped.sessionStatus = session.status
+        mapped.logs = session.logs || mapped.logs
+        if (session.errorSummary) {
+          mapped.logs = [session.errorSummary, ...mapped.logs]
+        }
+      }
+    } catch {
+      // session endpoint optional when none exists
+    }
     const idx = tasks.value.findIndex((item) => item.id === id)
     if (idx >= 0) {
       tasks.value[idx] = mapped
@@ -419,16 +435,76 @@ export const useWorkbenchStore = defineStore('workbench', () => {
     }
   }
 
-  function sendMessage(_id: string, _message: string) {
-    actionError.value = '当前适配器不能把消息送进仍在运行的进程，且执行面尚未接通'
+  async function sendMessage(id: string, message: string) {
+    actionError.value = ''
+    try {
+      await apiFetch(`/api/v1/tasks/${id}/input`, {
+        method: 'POST',
+        body: JSON.stringify({ note: message }),
+      })
+      await loadTaskDetail(id)
+      await load(scope.value)
+    } catch (err) {
+      actionError.value = err instanceof Error ? err.message : '发送失败（Codex 可能不支持运行中输入）'
+      throw err
+    }
   }
 
-  function retryTask(_id: string, _note: string) {
-    actionError.value = '附说明重试需要 Codex / 执行节点，尚未实现'
+  async function retryTask(id: string, note: string) {
+    actionError.value = ''
+    try {
+      const result = await apiFetch<{ taskStatus: string; sessionStatus: string | null; message: string }>(
+        `/api/v1/tasks/${id}/retry`,
+        { method: 'POST', body: JSON.stringify({ note }) },
+      )
+      await loadTaskDetail(id)
+      await load(scope.value)
+      if (result.taskStatus !== 'RUNNING') {
+        actionError.value = result.message || 'Session 未进入 RUNNING（可能 NOT_AVAILABLE）'
+      }
+    } catch (err) {
+      actionError.value = err instanceof Error ? err.message : '重试失败'
+      throw err
+    }
   }
 
-  function requestChanges(_id: string, _note: string) {
-    actionError.value = '要求修改需要在同一工作区开新 Session，尚未实现'
+  async function requestChanges(id: string, note: string) {
+    actionError.value = ''
+    try {
+      const result = await apiFetch<{ taskStatus: string; message: string }>(
+        `/api/v1/tasks/${id}/request-changes`,
+        { method: 'POST', body: JSON.stringify({ note }) },
+      )
+      await loadTaskDetail(id)
+      await load(scope.value)
+      if (result.taskStatus !== 'RUNNING') {
+        actionError.value = result.message || '要求修改未启动成功'
+      }
+    } catch (err) {
+      actionError.value = err instanceof Error ? err.message : '要求修改失败'
+      throw err
+    }
+  }
+
+  async function startTask(id: string, note?: string) {
+    actionError.value = ''
+    try {
+      const result = await apiFetch<{ taskStatus: string; sessionStatus: string | null; message: string; logs: string[] }>(
+        `/api/v1/tasks/${id}/start`,
+        { method: 'POST', body: JSON.stringify({ note: note || '' }) },
+      )
+      const mapped = await loadTaskDetail(id)
+      mapped.logs = [...(result.logs || []), ...(mapped.logs || [])]
+      mapped.sessionStatus = result.sessionStatus
+      if (result.taskStatus !== 'RUNNING') {
+        actionError.value = result.message || '启动未成功（不会假装 Codex 已完成）'
+      }
+      await load(scope.value)
+      return result
+    } catch (err) {
+      actionError.value = err instanceof Error ? err.message : '启动失败'
+      throw err
+    }
   }
 
   async function verifyTask(id: string) {
@@ -507,6 +583,7 @@ export const useWorkbenchStore = defineStore('workbench', () => {
     abandonTask,
     approveTask,
     requestChanges,
+    startTask,
     verifyTask,
     retryDelivery,
   }

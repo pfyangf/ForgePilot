@@ -25,7 +25,10 @@ public interface AgentAdapter {
     }
 
     enum AdapterMaturity {
-        /** MVP 选定的运行时。骨架不启动进程。 */
+        /** MVP 选定的运行时（Codex CLI）。 */
+        MVP,
+        /** 旧名，兼容测试。 */
+        @Deprecated
         MVP_STUB,
         /** 只保留端口，不能被选为当前运行时。 */
         RESERVED
@@ -47,6 +50,16 @@ public interface AgentAdapter {
             String workspacePath,
             String agentHomePath,
             String modelProxyBaseUrl,
-            String shortLivedModelToken) {
+            String shortLivedModelToken,
+            String modelId) {
+        public AgentExecutionContext(
+                String taskId,
+                String sessionId,
+                String workspacePath,
+                String agentHomePath,
+                String modelProxyBaseUrl,
+                String shortLivedModelToken) {
+            this(taskId, sessionId, workspacePath, agentHomePath, modelProxyBaseUrl, shortLivedModelToken, null);
+        }
     }
 }

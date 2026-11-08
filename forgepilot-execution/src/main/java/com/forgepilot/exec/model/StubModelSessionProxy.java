@@ -1,28 +1,20 @@
 package com.forgepilot.exec.model;
 
-import org.springframework.stereotype.Component;
-
-@Component
+/** 保留占位名；正式 Bean 为 {@link InMemoryModelSessionProxy}。 */
 public class StubModelSessionProxy implements ModelSessionProxy {
-
-    public static final String WIRE_API = "responses";
 
     @Override
     public String exposedWireApi() {
-        return WIRE_API;
+        return InMemoryModelSessionProxy.WIRE_API;
     }
 
     @Override
     public ModelSessionCredential issue(ModelSessionRequest request) {
-        throw unsupported();
+        throw new UnsupportedOperationException("请使用 InMemoryModelSessionProxy");
     }
 
     @Override
     public void revoke(String sessionId) {
-        throw unsupported();
-    }
-
-    private static UnsupportedOperationException unsupported() {
-        return new UnsupportedOperationException("模型会话代理尚未实现，不会签发令牌");
+        throw new UnsupportedOperationException("请使用 InMemoryModelSessionProxy");
     }
 }

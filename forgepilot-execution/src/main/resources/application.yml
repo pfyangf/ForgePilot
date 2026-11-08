@@ -15,9 +15,19 @@ forgepilot:
   control-plane:
     base-url: ${FORGEPILOT_CONTROL_PLANE_URL:http://localhost:8080}
   storage:
-    root: ${FORGEPILOT_STORAGE_ROOT:${user.home}/.forgepilot/execution}
+    root: ${FORGEPILOT_STORAGE_ROOT:${java.io.tmpdir}/forgepilot-execution}
   model-proxy:
-    # 对 Agent 暴露的线路固定为 Responses。监听地址由部署决定，骨架不启动真实代理。
+    # 对 Agent 暴露 Responses。MVP 与执行服务同端口，路径 /v1/responses。
     wire-api: responses
     bind: 127.0.0.1
-    port: 8082
+    port: ${server.port:8081}
+    token-ttl-seconds: 3600
+  isolation:
+    # 意图：Agent 默认拒绝访问控制面管理面与中间件；容器网络策略后续落实。
+    default-deny-egress: true
+    deny-agent-env-keys:
+      - POSTGRES
+      - RABBIT
+      - REDIS
+      - MINIO
+      - FORGEPILOT_JWT

@@ -13,7 +13,19 @@ public interface ModelSessionProxy {
 
     void revoke(String sessionId);
 
-    record ModelSessionRequest(String sessionId, String providerId, String modelId) {
+    /**
+     * @param upstreamApiKey 仅执行侧持有，不得写入 Agent 环境或配置文件
+     */
+    record ModelSessionRequest(
+            String sessionId,
+            String providerId,
+            String modelId,
+            String upstreamBaseUrl,
+            String upstreamApiKey,
+            String upstreamWireApi) {
+        public ModelSessionRequest(String sessionId, String providerId, String modelId) {
+            this(sessionId, providerId, modelId, null, null, "responses");
+        }
     }
 
     record ModelSessionCredential(String sessionId, String providerId, String baseUrl, String shortLivedToken) {

@@ -314,16 +314,17 @@ public class TaskService {
     }
 
     private UnsupportedActions unsupportedActions(String status) {
-        boolean execution = true;
-        boolean requestChanges = "WAITING_APPROVAL".equals(status);
-        boolean retry = "WAITING_USER".equals(status) || "RUNNING".equals(status);
+        // start/retry/request-changes 已由 TaskSessionService 接通；Codex 缺失时返回 NOT_AVAILABLE，不假装成功。
+        boolean execution = false;
+        boolean requestChanges = false;
+        boolean retry = false;
         return new UnsupportedActions(
                 execution,
-                "Codex / 执行节点尚未接通，不能启动或重试执行",
+                "可通过 POST /tasks/{id}/start 启动 Session（需执行节点与 codex）",
                 requestChanges,
-                "要求修改需要在同一工作区开新 Session，尚未实现",
+                "可通过 POST /tasks/{id}/request-changes 在同一工作区开新 Session",
                 retry,
-                "附说明重试需要执行面，尚未实现");
+                "可通过 POST /tasks/{id}/retry 在同一工作区开新 Session");
     }
 
     private void recordHistory(String taskId, String from, String to, String reason, String actorId) {

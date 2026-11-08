@@ -33,8 +33,12 @@ public class LocalGitSupport {
     public void cloneCheckout(
             Path mirrorPath, Path checkoutPath, String cloneUrl, String baseBranch, String askPassToken) {
         try {
-            if (Files.exists(checkoutPath)) {
+            if (Files.exists(checkoutPath.resolve(".git"))) {
                 return;
+            }
+            if (Files.exists(checkoutPath)) {
+                // 不完整目录（无 .git）则清掉后重克隆，保证 retry 同一路径可恢复
+                deleteRecursive(checkoutPath);
             }
             Files.createDirectories(checkoutPath.getParent());
             List<String> cmd = new ArrayList<>();
@@ -147,5 +151,19 @@ public class LocalGitSupport {
     }
 
     public record CommandResult(int exitCode, String stdout) {
+    }
+
+    private static void deleteRecursive(Path path) throws IOException {
+        if (!Files.exists(path)) {
+            return;
+        }
+        try (var walk = Files.walk(path)) {
+            walk.sorted(java.util.Comparator.reverseOrder()).forEach(p -> {
+                try {
+                    Files.deleteIfExists(p);
+                } catch (IOException ignored) {
+                }
+            });
+        }
     }
 }

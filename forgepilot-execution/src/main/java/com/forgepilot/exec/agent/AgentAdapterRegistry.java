@@ -18,7 +18,8 @@ public class AgentAdapterRegistry {
 
     public AgentAdapter mvp() {
         return adapters.stream()
-                .filter(adapter -> adapter.maturity() == AgentAdapter.AdapterMaturity.MVP_STUB)
+                .filter(adapter -> adapter.maturity() == AgentAdapter.AdapterMaturity.MVP
+                        || adapter.maturity() == AgentAdapter.AdapterMaturity.MVP_STUB)
                 .reduce((first, second) -> {
                     throw new IllegalStateException("MVP 适配器只能有一个");
                 })

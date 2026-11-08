@@ -23,12 +23,19 @@
     </el-card>
 
     <el-card v-if="task.status === 'RUNNING'" class="block">
-      <template #header>执行中的会话</template>
-      <el-alert type="info" :closable="false" show-icon :title="task.unsupported?.startOrRetryReason || '执行面尚未接通'" />
-      <pre class="log">{{ task.logs.join('\n') || '没有实时日志（Codex 尚未接通）' }}</pre>
+      <template #header>执行中的会话（Task ≠ Session）</template>
+      <el-alert
+        type="info"
+        :closable="false"
+        show-icon
+        title="Codex 不声明向运行中进程发消息。需要继续时请取消后附说明重试（同一工作区新 Session）。不会假装编码已完成。"
+      />
+      <pre class="log">{{ task.logs.join('\n') || '暂无日志（可轮询 /session）' }}</pre>
       <div class="row">
-        <el-button type="danger" :loading="saving" @click="cancel">取消任务</el-button>
-        <el-button disabled>附说明重试（未实现）</el-button>
+        <el-input v-model="note" placeholder="说明 / 仅 WAITING_INPUT 时可作输入" />
+        <el-button :loading="saving" @click="sendInput">发送输入</el-button>
+        <el-button :loading="saving" @click="retryAgent">附说明重试</el-button>
+        <el-button type="danger" :loading="saving" @click="cancel">取消</el-button>
       </div>
     </el-card>
 
@@ -56,7 +63,7 @@
       <div class="row">
         <el-input v-model="note" placeholder="审核说明（可选）" />
         <el-button type="primary" :loading="saving" @click="approve">审核通过</el-button>
-        <el-button disabled>要求修改（未实现）</el-button>
+        <el-button :loading="saving" @click="requestChanges">要求修改</el-button>
       </div>
     </el-card>
 
@@ -67,7 +74,7 @@
         <el-input v-model="note" placeholder="说明（取消/放弃时可选）" />
         <el-button type="primary" :loading="saving" @click="verify">再次验证</el-button>
         <el-button :loading="saving" @click="retryDelivery">重试交付</el-button>
-        <el-button disabled>Agent 重试（未实现）</el-button>
+        <el-button :loading="saving" @click="retryAgent">Agent 重试</el-button>
         <el-button :loading="saving" @click="cancel">取消</el-button>
         <el-button type="danger" :loading="saving" @click="abandon">明确放弃</el-button>
       </div>
@@ -80,10 +87,15 @@
 
     <el-card v-else-if="task.status === 'PENDING' || task.status === 'PREPARING'" class="block">
       <template #header>待执行</template>
-      <el-alert type="info" :closable="false" show-icon title="启动执行需要 Codex / 执行节点，尚未实现。可以取消任务。" />
+      <el-alert
+        type="info"
+        :closable="false"
+        show-icon
+        title="可启动 Session。若本机无 codex 或执行节点不可达，会返回 NOT_AVAILABLE 并进入 WAITING_USER，不会假装成功。"
+      />
       <div class="row">
-        <el-button type="primary" :loading="saving" @click="verify">平台验证</el-button>
-        <el-button disabled>启动 Agent（未实现）</el-button>
+        <el-button type="primary" :loading="saving" @click="startAgent">启动 Agent Session</el-button>
+        <el-button :loading="saving" @click="verify">平台验证</el-button>
         <el-button type="danger" :loading="saving" @click="cancel">取消</el-button>
       </div>
     </el-card>
@@ -178,6 +190,54 @@ async function retryDelivery() {
     ElMessage.success('已重试交付')
   } catch (err) {
     ElMessage.error(err instanceof Error ? err.message : '重试失败')
+  } finally {
+    saving.value = false
+  }
+}
+
+async function startAgent() {
+  saving.value = true
+  try {
+    await store.startTask(props.id, note.value)
+    ElMessage.success('已请求启动 Session（若 NOT_AVAILABLE 请看错误提示）')
+  } catch (err) {
+    ElMessage.error(err instanceof Error ? err.message : '启动失败')
+  } finally {
+    saving.value = false
+  }
+}
+
+async function retryAgent() {
+  saving.value = true
+  try {
+    await store.retryTask(props.id, note.value)
+    ElMessage.success('已请求同工作区重试')
+  } catch (err) {
+    ElMessage.error(err instanceof Error ? err.message : '重试失败')
+  } finally {
+    saving.value = false
+  }
+}
+
+async function sendInput() {
+  saving.value = true
+  try {
+    await store.sendMessage(props.id, note.value)
+    ElMessage.success('已发送')
+  } catch (err) {
+    ElMessage.error(err instanceof Error ? err.message : '发送失败')
+  } finally {
+    saving.value = false
+  }
+}
+
+async function requestChanges() {
+  saving.value = true
+  try {
+    await store.requestChanges(props.id, note.value)
+    ElMessage.success('已请求修改（新 Session）')
+  } catch (err) {
+    ElMessage.error(err instanceof Error ? err.message : '要求修改失败')
   } finally {
     saving.value = false
   }
