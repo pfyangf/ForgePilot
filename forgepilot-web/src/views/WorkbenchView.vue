@@ -1,20 +1,20 @@
 <template>
   <div>
     <el-alert
-      type="info"
+      type="success"
       show-icon
       :closable="false"
-      title="这是个人工作台骨架，数据写在浏览器里，用来走通列表和分状态详情。"
-      description="数据先按当前用户所属公司收口，再按项目成员关系。默认「我的」。「待我处理」只留待审核、等待人工，或会话正在等我输入的任务。打开页面本身不写操作记录。"
+      title="个人工作台已接通控制面"
+      description="列表按当前登录用户的租户与项目成员关系从服务器加载。默认先看「待我处理」。打开页面本身不写操作记录。"
     />
     <div class="toolbar">
-      <el-radio-group v-model="store.scope">
-        <el-radio-button value="mine">我的</el-radio-button>
+      <el-radio-group :model-value="store.scope" @change="onScopeChange">
         <el-radio-button value="waiting">待我处理</el-radio-button>
+        <el-radio-button value="mine">我的</el-radio-button>
         <el-radio-button value="member">项目内全部</el-radio-button>
       </el-radio-group>
-      <el-button @click="checkHealth">检查控制面</el-button>
-      <span v-if="health">{{ health }}</span>
+      <el-button :loading="store.loading" @click="store.load()">刷新</el-button>
+      <span v-if="store.error" class="error">{{ store.error }}</span>
     </div>
     <el-row :gutter="12" class="stats">
       <el-col :span="4"><el-statistic title="需求" :value="store.counts.requirements" /></el-col>
@@ -24,7 +24,7 @@
       <el-col :span="4"><el-statistic title="待审核" :value="store.counts.approval" /></el-col>
       <el-col :span="4"><el-statistic title="待处理" :value="store.counts.waitingUser" /></el-col>
     </el-row>
-    <el-card>
+    <el-card v-loading="store.loading">
       <template #header>需求</template>
       <el-table :data="store.visibleRequirements" empty-text="这个筛选下没有需求" @row-click="openRequirement">
         <el-table-column prop="title" label="名称" />
@@ -35,7 +35,7 @@
         </el-table-column>
       </el-table>
     </el-card>
-    <el-card class="block">
+    <el-card class="block" v-loading="store.loading">
       <template #header>任务</template>
       <el-table :data="store.visibleTasks" empty-text="这个筛选下没有任务" @row-click="openTask">
         <el-table-column prop="title" label="名称" />
@@ -48,13 +48,14 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
+import { useAuthStore } from '@/stores/auth'
 import { useWorkbenchStore } from '@/stores/workbench'
 
 const store = useWorkbenchStore()
+const auth = useAuthStore()
 const router = useRouter()
-const health = ref('')
 
 function progressText(id: string) {
   const progress = store.progress(id)
@@ -69,14 +70,24 @@ function openTask(row: { id: string }) {
   router.push(`/tasks/${row.id}`)
 }
 
-async function checkHealth() {
-  try {
-    const response = await fetch('/api/v1/health')
-    health.value = response.ok ? await response.text() : `控制面返回 ${response.status}`
-  } catch {
-    health.value = '控制面未启动'
-  }
+function onScopeChange(value: string | number | boolean | undefined) {
+  void store.load(value as 'mine' | 'member' | 'waiting')
 }
+
+onMounted(() => {
+  if (auth.isAuthenticated) {
+    void store.load('waiting')
+  }
+})
+
+watch(
+  () => auth.isAuthenticated,
+  (ok) => {
+    if (ok) {
+      void store.load('waiting')
+    }
+  },
+)
 </script>
 
 <style scoped>
@@ -89,5 +100,8 @@ async function checkHealth() {
   display: flex;
   gap: 12px;
   align-items: center;
+}
+.error {
+  color: #b91c1c;
 }
 </style>

@@ -1,16 +1,19 @@
 package com.forgepilot.system.domain;
 
 import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
+import com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler;
 import java.time.Instant;
+import java.util.Map;
 import lombok.Getter;
 import lombok.Setter;
 
 /** 只追加的操作记录。没有更新字段，实体也不保存密钥。 */
 @Getter
 @Setter
-@TableName("activity_log")
+@TableName(value = "activity_log", autoResultMap = true)
 public class ActivityLog {
 
     @TableId(type = IdType.ASSIGN_UUID)
@@ -28,5 +31,7 @@ public class ActivityLog {
     private String taskId;
     private String requestId;
     private String summary;
+    @TableField(typeHandler = JacksonTypeHandler.class)
+    private Map<String, Object> payload;
     private String result;
 }

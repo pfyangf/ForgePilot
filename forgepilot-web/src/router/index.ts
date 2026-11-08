@@ -3,14 +3,17 @@ import ActivityView from '@/views/ActivityView.vue'
 import CodingListView from '@/views/CodingListView.vue'
 import DeliveryListView from '@/views/DeliveryListView.vue'
 import GuidanceView from '@/views/GuidanceView.vue'
+import LoginView from '@/views/LoginView.vue'
 import PlaceholderView from '@/views/PlaceholderView.vue'
 import RequirementDetailView from '@/views/RequirementDetailView.vue'
 import TaskDetailView from '@/views/TaskDetailView.vue'
 import WorkbenchView from '@/views/WorkbenchView.vue'
+import { getAccessToken } from '@/api/http'
 
 const router = createRouter({
   history: createWebHistory(),
   routes: [
+    { path: '/login', name: 'login', component: LoginView, meta: { public: true } },
     { path: '/', name: 'workbench', component: WorkbenchView },
     { path: '/requirements/:id', name: 'requirement', component: RequirementDetailView, props: true },
     { path: '/tasks/:id', name: 'task', component: TaskDetailView, props: true },
@@ -37,6 +40,16 @@ const router = createRouter({
       },
     },
   ],
+})
+
+router.beforeEach((to) => {
+  if (to.meta.public) {
+    return true
+  }
+  if (!getAccessToken()) {
+    return { name: 'login', query: { redirect: to.fullPath } }
+  }
+  return true
 })
 
 export default router

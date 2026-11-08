@@ -11,7 +11,7 @@ export type TaskStatus =
   | 'FAILED'
   | 'CANCELLED'
 
-export type SessionStatus = 'RUNNING' | 'WAITING_INPUT' | 'INTERRUPTED' | 'SUCCEEDED' | 'FAILED' | 'CANCELLED'
+export type SessionStatus = 'RUNNING' | 'WAITING_INPUT' | 'INTERRUPTED' | 'SUCCEEDED' | 'FAILED' | 'CANCELLED' | string
 
 export interface SuggestedTask {
   id: string
@@ -21,13 +21,16 @@ export interface SuggestedTask {
 export interface WorkRequirement {
   id: string
   title: string
-  status: RequirementStatus
+  status: RequirementStatus | string
+  projectId?: string
   projectName: string
   createdBy: string
   ownerId: string
   draft: string
   suggestions: SuggestedTask[]
   confirmed: boolean
+  taskDone?: number
+  taskTotal?: number
 }
 
 export interface CheckoutInfo {
@@ -45,10 +48,11 @@ export interface WorkTask {
   id: string
   requirementId: string
   title: string
-  status: TaskStatus
+  status: TaskStatus | string
   sessionStatus: SessionStatus | null
   createdBy: string
   ownerId: string
+  projectId?: string
   projectName: string
   branchName: string
   providerName: string

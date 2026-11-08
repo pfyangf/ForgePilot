@@ -46,7 +46,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useWorkbenchStore } from '@/stores/workbench'
 
@@ -58,6 +58,12 @@ const requirement = computed(() => store.requirementById(props.id))
 const related = computed(() => store.tasksFor(props.id))
 const progress = computed(() => store.progress(props.id))
 const inAnalysis = computed(() => requirement.value?.status === '待分析' || requirement.value?.status === '设计中')
+
+onMounted(() => {
+  if (!requirement.value) {
+    void store.load('member')
+  }
+})
 
 function addSuggestion() {
   store.addSuggestion(props.id, suggestion.value)

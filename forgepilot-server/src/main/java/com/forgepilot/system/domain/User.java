@@ -13,6 +13,7 @@ public class User {
 
     @TableId(type = IdType.ASSIGN_UUID)
     private String id;
+    private String tenantId;
     private String username;
     private String passwordHash;
     private String displayName;

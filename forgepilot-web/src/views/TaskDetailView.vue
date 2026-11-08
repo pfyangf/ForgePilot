@@ -99,7 +99,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useWorkbenchStore } from '@/stores/workbench'
 
@@ -107,6 +107,12 @@ const props = defineProps<{ id: string }>()
 const store = useWorkbenchStore()
 const router = useRouter()
 const task = computed(() => store.taskById(props.id))
+
+onMounted(() => {
+  if (!task.value) {
+    void store.load('member')
+  }
+})
 const message = ref('')
 const note = ref('')
 

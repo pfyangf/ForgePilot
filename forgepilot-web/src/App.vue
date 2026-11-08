@@ -1,5 +1,6 @@
 <template>
-  <el-container class="shell">
+  <router-view v-if="route.name === 'login'" />
+  <el-container v-else class="shell">
     <el-aside width="220px">
       <div class="brand">ForgePilot</div>
       <el-menu :default-active="active" router>
@@ -13,7 +14,13 @@
       </el-menu>
     </el-aside>
     <el-container>
-      <el-header class="header">云端 AI Coding 平台 · 个人工作台骨架</el-header>
+      <el-header class="header">
+        <span>云端 AI Coding 平台 · 个人工作台</span>
+        <div class="user" v-if="auth.user">
+          <span>{{ auth.user.displayName }}（{{ auth.user.username }}）</span>
+          <el-button link type="primary" @click="logout">退出</el-button>
+        </div>
+      </el-header>
       <el-main>
         <router-view />
       </el-main>
@@ -22,16 +29,29 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
-import { useRoute } from 'vue-router'
+import { computed, onMounted } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import { useAuthStore } from '@/stores/auth'
 
 const route = useRoute()
+const router = useRouter()
+const auth = useAuthStore()
+
 const active = computed(() => {
   if (route.path.startsWith('/requirements') || route.path.startsWith('/tasks')) {
     return '/'
   }
   return route.path
 })
+
+onMounted(() => {
+  void auth.restoreSession()
+})
+
+async function logout() {
+  auth.logout()
+  await router.push('/login')
+}
 </script>
 
 <style>
@@ -50,8 +70,14 @@ body {
 .header {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   background: #fff;
   border-bottom: 1px solid #e5e7eb;
+}
+.user {
+  display: flex;
+  gap: 8px;
+  align-items: center;
 }
 .log,
 .diff {

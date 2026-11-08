@@ -4,7 +4,7 @@ ForgePilot（云端 AI Coding 平台）以需求为入口，调度 AI Agent 在�
 
 一个项目关联多个 Git 仓库。一次任务使用一个工作区目录，平台把这些仓库都检出到该目录里。MVP 的 Agent 运行时是容器内的 Codex CLI。模型长期密钥留在执行节点的代理侧。
 
-当前仓库是 V1.2 基线上的工程骨架：控制面、执行服务和前端可以编译，端口和页面是占位实现，还没有打通业务闭环。
+当前仓库在 V1.2 基线上：已接通本地用户名/密码登录、JWT 和个人工作台只读接口。Codex、GitLab 和真实执行流程仍未打通。
 
 ## 文档
 
@@ -45,6 +45,17 @@ npm run dev --prefix forgepilot-web
 
 Compose 里的账号口令只用于本机开发：PostgreSQL 和 RabbitMQ 是 `forgepilot` / `forgepilot`，MinIO 是 `forgepilot` / `forgepilot-dev`。不要把它们用于共享环境。
 
+## 本机演示账号
+
+Flyway `V3__local_demo_seed.sql` 写入下列账号，口令均为 `ForgePilot!dev`：
+
+| 用户名 | 角色 | 说明 |
+| --- | --- | --- |
+| `demo_member` | 成员 | 演示科技「支付」项目成员，用于登录工作台 |
+| `demo_admin` | 租户管理员 | 同一家公司的管理员 |
+| `platform_admin` | 平台管理员 | 无租户，工作台默认空（不因管理身份跨项目） |
+| `other_member` | 成员 | 另一家公司，用于租户隔离验收 |
+
 ## 骨架里还没有的东西
 
-骨架不启动 Codex，不调用 GitLab，不创建容器，也不保管真实的 Provider 密钥。工作台页面使用浏览器内的示例数据，用来展示个人列表和按状态区分的详情。
+还不启动 Codex，不调用 GitLab，不创建容器，也不保管真实的 Provider 密钥。需求/任务详情页的执行动作仍是前端占位；工作台首页列表与「待我处理」已从控制面加载。
