@@ -203,6 +203,7 @@ public class TaskSessionService {
         String from = task.getStatus();
         if (!List.of("COMPLETED", "FAILED", "CANCELLED").contains(from)) {
             task.setStatus("CANCELLED");
+            task.setTerminalAt(Instant.now());
             codingTaskMapper.updateById(task);
             recordHistory(taskId, from, "CANCELLED", "取消任务与 Session", user.userId());
         }

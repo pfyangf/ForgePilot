@@ -108,6 +108,39 @@
         <el-button type="danger" :loading="saving" @click="cancel">取消</el-button>
       </div>
     </el-card>
+
+    <el-card class="block">
+      <template #header>
+        <div class="row">
+          <span>会话日志与归档</span>
+          <el-button link type="primary" :loading="saving" @click="refreshArchives">刷新归档</el-button>
+          <el-button
+            v-if="task.sessionId"
+            link
+            type="primary"
+            :loading="saving"
+            @click="archiveCurrent"
+          >归档当前会话</el-button>
+        </div>
+      </template>
+      <el-alert
+        type="info"
+        :closable="false"
+        show-icon
+        title="上方卡片继续轮询/展示实时日志块。归档列表来自对象存储指针（默认内存假存储；生产 MinIO）。"
+      />
+      <el-table :data="archivedLogs" empty-text="尚无归档" class="block">
+        <el-table-column prop="sessionId" label="Session" width="280" />
+        <el-table-column prop="objectKey" label="对象键" />
+        <el-table-column prop="byteSize" label="字节" width="100" />
+        <el-table-column prop="createdAt" label="时间" width="200" />
+        <el-table-column label="操作" width="120">
+          <template #default="{ row }">
+            <el-button link type="primary" @click="downloadArchive(row.sessionId)">下载</el-button>
+          </template>
+        </el-table-column>
+      </el-table>
+    </el-card>
   </div>
   <el-empty v-else description="没有这条任务">
     <el-button @click="router.push('/')">返回工作台</el-button>
@@ -115,7 +148,8 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { apiFetch, getAccessToken } from '@/api/http'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { useWorkbenchStore } from '@/stores/workbench'
@@ -126,6 +160,8 @@ const router = useRouter()
 const task = computed(() => store.taskById(props.id))
 const note = ref('')
 const saving = ref(false)
+const archivedLogs = ref<{ id: string; sessionId: string; objectKey: string; byteSize: number; createdAt: string }[]>([])
+let pollTimer: number | undefined
 
 onMounted(async () => {
   try {
@@ -133,7 +169,60 @@ onMounted(async () => {
   } catch {
     await store.load('member')
   }
+  await refreshArchives()
+  pollTimer = window.setInterval(() => {
+    void store.loadTaskDetail(props.id).catch(() => undefined)
+  }, 5000)
 })
+
+onUnmounted(() => {
+  if (pollTimer) window.clearInterval(pollTimer)
+})
+
+async function refreshArchives() {
+  try {
+    archivedLogs.value = await apiFetch(`/api/v1/tasks/${props.id}/archived-logs`)
+  } catch {
+    archivedLogs.value = []
+  }
+}
+
+async function archiveCurrent() {
+  const sid = task.value?.sessionId
+  if (!sid) {
+    ElMessage.warning('当前任务没有 Session')
+    return
+  }
+  saving.value = true
+  try {
+    await apiFetch(`/api/v1/tasks/${props.id}/sessions/${sid}/archive-logs`, { method: 'POST' })
+    ElMessage.success('已请求归档')
+    await refreshArchives()
+  } catch (err) {
+    ElMessage.error(err instanceof Error ? err.message : '归档失败')
+  } finally {
+    saving.value = false
+  }
+}
+
+async function downloadArchive(sessionId: string) {
+  try {
+    const token = getAccessToken()
+    const res = await fetch(`/api/v1/tasks/${props.id}/sessions/${sessionId}/archived-log`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    })
+    if (!res.ok) throw new Error('下载失败')
+    const blob = await res.blob()
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${sessionId}.log`
+    a.click()
+    URL.revokeObjectURL(url)
+  } catch (err) {
+    ElMessage.error(err instanceof Error ? err.message : '下载失败')
+  }
+}
 
 async function cancel() {
   saving.value = true

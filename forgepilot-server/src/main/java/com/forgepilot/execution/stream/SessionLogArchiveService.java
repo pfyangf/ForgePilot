@@ -99,6 +99,13 @@ public class SessionLogArchiveService implements LogArchivePort {
         }
     }
 
+    public List<Artifact> listLogArtifacts(String taskId) {
+        return artifactMapper.selectList(new LambdaQueryWrapper<Artifact>()
+                .eq(Artifact::getTaskId, taskId)
+                .eq(Artifact::getKind, "SESSION_LOG")
+                .orderByDesc(Artifact::getCreatedAt));
+    }
+
     public Optional<Artifact> findLogArtifact(String sessionId) {
         return Optional.ofNullable(artifactMapper.selectOne(new LambdaQueryWrapper<Artifact>()
                 .eq(Artifact::getSessionId, sessionId)

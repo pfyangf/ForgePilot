@@ -50,6 +50,7 @@ export interface WorkTask {
   title: string
   status: TaskStatus | string
   sessionStatus: SessionStatus | null
+  sessionId?: string | null
   createdBy: string
   ownerId: string
   projectId?: string

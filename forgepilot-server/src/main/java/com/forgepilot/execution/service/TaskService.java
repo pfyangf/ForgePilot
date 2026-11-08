@@ -221,6 +221,9 @@ public class TaskService {
             TaskActionRequest request) {
         String from = task.getStatus();
         task.setStatus(toStatus);
+        if (TERMINAL.contains(toStatus)) {
+            task.setTerminalAt(Instant.now());
+        }
         codingTaskMapper.updateById(task);
         recordHistory(task.getId(), from, toStatus, reason + noteSuffix(request), user.userId());
         activityLogRecorder.record(

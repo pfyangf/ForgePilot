@@ -33,4 +33,6 @@ public class CodingTask {
     private String predecessorTaskId;
     private String createdBy;
     private java.time.Instant queuedAt;
+    /** 进入 COMPLETED/FAILED/CANCELLED 的时间；工作区保留宽限以此为准 */
+    private java.time.Instant terminalAt;
 }

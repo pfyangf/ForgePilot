@@ -41,6 +41,19 @@ management:
         enabled: true
 
 forgepilot:
+
+  workers:
+    # 单元测试不启动 Spring 上下文；本机/Compose 默认开启轮询 worker
+    enabled: ${FORGEPILOT_WORKERS_ENABLED:true}
+    outbox-drain:
+      enabled: ${FORGEPILOT_WORKER_OUTBOX:true}
+      delay-ms: 5000
+    log-archive-retry:
+      enabled: ${FORGEPILOT_WORKER_LOG_ARCHIVE:true}
+      delay-ms: 15000
+    workspace-retention:
+      enabled: ${FORGEPILOT_WORKER_RETENTION:true}
+      delay-ms: 60000
   minio:
     enabled: ${FORGEPILOT_MINIO_ENABLED:false}
     endpoint: ${FORGEPILOT_MINIO_ENDPOINT:http://localhost:9000}

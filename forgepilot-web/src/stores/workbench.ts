@@ -137,6 +137,7 @@ function toTask(item: ApiTask): WorkTask {
     title: item.title,
     status: item.status,
     sessionStatus: item.sessionStatus,
+    sessionId: null,
     createdBy: item.createdBy,
     ownerId: item.ownerId,
     projectId: item.projectId,
@@ -318,6 +319,7 @@ export const useWorkbenchStore = defineStore('workbench', () => {
         errorSummary?: string
       }>(`/api/v1/tasks/${id}/session`)
       if (session) {
+        mapped.sessionId = session.id
         mapped.sessionStatus = session.status
         mapped.logs = session.logs || mapped.logs
         if (session.errorSummary) {

@@ -44,6 +44,33 @@
       </el-table>
     </el-card>
 
+
+    <el-card class="block">
+      <template #header>
+        <div class="row-between">
+          <span>项目成员</span>
+          <el-button type="primary" link @click="showMember = true">邀请/添加</el-button>
+        </div>
+      </template>
+      <el-alert
+        class="block"
+        type="info"
+        :closable="false"
+        show-icon
+        title="仅本公司用户。角色为 project-admin 或 member。平台管理员不挂租户、不出现在项目工作台。"
+      />
+      <el-table :data="members" empty-text="还没有成员（或无权查看）">
+        <el-table-column prop="username" label="用户名" width="140" />
+        <el-table-column prop="displayName" label="显示名" />
+        <el-table-column prop="role" label="角色" width="140" />
+        <el-table-column label="操作" width="100">
+          <template #default="{ row }">
+            <el-button link type="danger" @click="removeMember(row.userId)">移除</el-button>
+          </template>
+        </el-table-column>
+      </el-table>
+    </el-card>
+
     <el-card class="block">
       <template #header>
         <div class="row-between">
@@ -86,6 +113,31 @@
       <template #footer>
         <el-button @click="showRepo = false">取消</el-button>
         <el-button type="primary" :loading="saving" @click="addRepo">保存</el-button>
+      </template>
+    </el-dialog>
+
+
+    <el-dialog v-model="showMember" title="邀请项目成员" width="520px">
+      <el-form label-width="100px">
+        <el-form-item label="用户名" required>
+          <el-input v-model="memberForm.username" placeholder="已有公司用户或新建" />
+        </el-form-item>
+        <el-form-item label="显示名">
+          <el-input v-model="memberForm.displayName" />
+        </el-form-item>
+        <el-form-item label="初始口令">
+          <el-input v-model="memberForm.password" type="password" placeholder="新建用户时必填，≥8 位" show-password />
+        </el-form-item>
+        <el-form-item label="角色">
+          <el-select v-model="memberForm.role" style="width: 100%">
+            <el-option label="成员" value="member" />
+            <el-option label="项目管理员" value="project-admin" />
+          </el-select>
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="showMember = false">取消</el-button>
+        <el-button type="primary" :loading="saving" @click="inviteMember">保存</el-button>
       </template>
     </el-dialog>
 
@@ -132,6 +184,9 @@ function backToProjects() {
 }
 const showRepo = ref(false)
 const showReq = ref(false)
+const showMember = ref(false)
+const members = ref<{ membershipId: string; userId: string; username: string; displayName: string; role: string }[]>([])
+const memberForm = reactive({ username: '', displayName: '', password: '', role: 'member' })
 const saving = ref(false)
 const repoForm = reactive({
   displayName: '',
@@ -157,6 +212,54 @@ async function refresh() {
     defaultsForm.defaultAgentProfileId = store.detail.project.defaultAgentProfileId || ''
     defaultsForm.defaultModelProviderId = store.detail.project.defaultModelProviderId || ''
     defaultsForm.defaultModelId = store.detail.project.defaultModelId || ''
+  }
+  try {
+    members.value = await apiFetch(`/api/v1/projects/${props.id}/members`)
+  } catch {
+    members.value = []
+  }
+}
+
+async function inviteMember() {
+  if (!memberForm.username.trim()) {
+    ElMessage.warning('请填写用户名')
+    return
+  }
+  saving.value = true
+  try {
+    await apiFetch(`/api/v1/projects/${props.id}/members`, {
+      method: 'POST',
+      body: JSON.stringify({
+        username: memberForm.username.trim(),
+        displayName: memberForm.displayName.trim() || undefined,
+        password: memberForm.password || undefined,
+        role: memberForm.role,
+      }),
+    })
+    showMember.value = false
+    memberForm.username = ''
+    memberForm.displayName = ''
+    memberForm.password = ''
+    memberForm.role = 'member'
+    ElMessage.success('成员已保存')
+    await refresh()
+  } catch (err) {
+    ElMessage.error(err instanceof Error ? err.message : '邀请失败')
+  } finally {
+    saving.value = false
+  }
+}
+
+async function removeMember(userId: string) {
+  saving.value = true
+  try {
+    await apiFetch(`/api/v1/projects/${props.id}/members/${userId}`, { method: 'DELETE' })
+    ElMessage.success('已移除')
+    await refresh()
+  } catch (err) {
+    ElMessage.error(err instanceof Error ? err.message : '移除失败')
+  } finally {
+    saving.value = false
   }
 }
 

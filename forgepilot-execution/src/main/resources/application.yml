@@ -37,3 +37,6 @@ forgepilot:
     capacity: ${FORGEPILOT_NODE_CAPACITY:4}
   internal-api:
     token: ${FORGEPILOT_INTERNAL_TOKEN:}
+  process:
+    # true 时拒绝 LocalProcessRuntime 启动（生产应走 ContainerRuntime）
+    require-sandbox: ${FORGEPILOT_PROCESS_REQUIRE_SANDBOX:false}
