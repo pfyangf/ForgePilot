@@ -53,3 +53,7 @@ forgepilot:
     # 本机开发密钥，生产必须注入更长的随机值。
     secret: ${FORGEPILOT_JWT_SECRET:forgepilot-local-dev-secret-change-me-32b}
     expire-seconds: ${FORGEPILOT_JWT_EXPIRE_SECONDS:86400}
+  workspace:
+    storage-root: ${FORGEPILOT_WORKSPACE_ROOT:${java.io.tmpdir}/forgepilot-workspaces}
+  gitlab:
+    token: ${FORGEPILOT_GITLAB_TOKEN:}

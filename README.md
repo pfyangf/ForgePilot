@@ -4,7 +4,7 @@ ForgePilot（云端 AI Coding 平台）以需求为入口，调度 AI Agent 在�
 
 一个项目关联多个 Git 仓库。一次任务使用一个工作区目录，平台把这些仓库都检出到该目录里。MVP 的 Agent 运行时是容器内的 Codex CLI。模型长期密钥留在执行节点的代理侧。
 
-当前仓库在 `dev` 分支推进 V1.2：已接通本地登录与 JWT、个人工作台、项目/多仓库、需求、任务、模型/编码工具目录、三层规约与合成快照、操作记录查询与日报。Codex、GitLab 和真实执行流程仍未打通。
+当前仓库在 `dev` 分支推进 V1.2：已接通本地登录与 JWT、个人工作台、项目/多仓库、需求、任务、模型/编码工具目录、三层规约与合成快照、操作记录查询与日报，以及 GitHostingPort（GitLab 适配器）、冻结多仓工作区检出、本机验证 runner 与平台 Draft MR 交付（`verify` / `retry-delivery`）。Codex Session、模型代理与容器化验证仍未打通。
 
 ## 文档
 
@@ -66,6 +66,7 @@ Flyway `V3__local_demo_seed.sql` 写入下列账号，口令均为 `ForgePilot!d
 - `GET /api/v1/requirements/{id}`，`POST /api/v1/requirements/{id}/confirm-analysis`
 - `GET|POST /api/v1/requirements/{id}/tasks`
 - `GET /api/v1/tasks/{id}`，`POST /api/v1/tasks/{id}/cancel|abandon|approve`
+- `POST /api/v1/tasks/{id}/verify`、`POST /api/v1/tasks/{id}/retry-delivery`（冻结仓检出 + 工作区根命令验证 + 有改动仓库推送 `fp/{taskId}` / Draft MR；不假装 Codex）
 - `GET|POST|PUT /api/v1/model-providers`（响应含 `hasSecret`，从不返回 apiKey）
 - `GET|POST|PUT /api/v1/coding-tools`
 - `GET|POST|PUT /api/v1/guidance`，`GET /api/v1/projects/{id}/conventions/effective`，`POST .../conventions/snapshots`
@@ -76,4 +77,4 @@ Flyway `V5` 为演示科技写入了本地占位 Provider/Codex 工具和三层�
 
 ## 还没有的东西
 
-还不启动 Codex，不调用 GitLab，不创建容器。长期密钥虽可写入 `integration_secret`，但不会下发到 Agent。详情页里「启动 / 重试 / 要求修改 / 发消息」明确标为未实现，不会假装成功。
+还不启动 Codex / Agent Session，不跑模型代理，不创建执行容器或容器化验证器。GitLab 适配器已实现并可在测试中 mock HTTP；本机无 token 时对 `file://` 远端走合成 Draft MR。长期密钥虽可写入 `integration_secret`，但不会下发到 Agent，也不会写进 remote URL（概念上走 askpass）。详情页里「启动 Agent / Agent 重试 / 要求修改 / 发消息」明确标为未实现，不会假装成功。

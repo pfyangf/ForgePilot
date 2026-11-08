@@ -25,4 +25,6 @@ public class MergeRequestRecord {
     private String headSha;
     private String idempotencyKey;
     private String state;
+    private String createdBy;
+    private String updatedBy;
 }

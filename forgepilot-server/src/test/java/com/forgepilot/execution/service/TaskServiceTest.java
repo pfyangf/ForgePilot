@@ -15,6 +15,7 @@ import com.forgepilot.execution.domain.TaskRepositoryFreeze;
 import com.forgepilot.execution.persistence.CodingTaskMapper;
 import com.forgepilot.execution.persistence.TaskRepositoryFreezeMapper;
 import com.forgepilot.execution.persistence.TaskStateHistoryMapper;
+import com.forgepilot.delivery.persistence.MergeRequestMapper;
 import com.forgepilot.execution.web.CreateTaskRequest;
 import com.forgepilot.execution.web.TaskActionRequest;
 import com.forgepilot.project.domain.Project;
@@ -48,6 +49,7 @@ class TaskServiceTest {
     private final ProjectMapper projectMapper = mock(ProjectMapper.class);
     private final ProjectMemberMapper projectMemberMapper = mock(ProjectMemberMapper.class);
     private final ActivityLogRecorder activityLogRecorder = mock(ActivityLogRecorder.class);
+    private final MergeRequestMapper mergeRequestMapper = mock(MergeRequestMapper.class);
     private TaskService service;
 
     @BeforeEach
@@ -61,7 +63,8 @@ class TaskServiceTest {
                 requirementMapper,
                 projectMapper,
                 access,
-                activityLogRecorder);
+                activityLogRecorder,
+                mergeRequestMapper);
         when(projectMemberMapper.findProjectIdsByUserId(USER)).thenReturn(List.of(PROJECT));
         when(requirementMapper.selectById(REQUIREMENT)).thenReturn(requirement());
         when(projectMapper.selectById(PROJECT)).thenReturn(project());
@@ -73,6 +76,7 @@ class TaskServiceTest {
                 repo("repo-api", "pay-api", "main"),
                 repo("repo-web", "pay-web", "develop")));
         when(freezeMapper.selectList(any(LambdaQueryWrapper.class))).thenAnswer(inv -> List.of());
+        when(mergeRequestMapper.selectList(any(LambdaQueryWrapper.class))).thenReturn(List.of());
     }
 
     @Test

@@ -7,6 +7,8 @@ import com.forgepilot.execution.domain.TaskStateHistory;
 import com.forgepilot.execution.persistence.CodingTaskMapper;
 import com.forgepilot.execution.persistence.TaskRepositoryFreezeMapper;
 import com.forgepilot.execution.persistence.TaskStateHistoryMapper;
+import com.forgepilot.delivery.domain.MergeRequestRecord;
+import com.forgepilot.delivery.persistence.MergeRequestMapper;
 import com.forgepilot.execution.web.CreateTaskRequest;
 import com.forgepilot.execution.web.TaskActionRequest;
 import com.forgepilot.project.domain.Project;
@@ -30,7 +32,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 /**
- * 任务生命周期（创建与人工状态迁移）。不创建 Agent Session，也不触发 Codex / GitLab。
+ * 任务生命周期（创建与人工状态迁移）。不创建 Agent Session，也不触发 Codex。
  */
 @Service
 public class TaskService {
@@ -45,6 +47,7 @@ public class TaskService {
     private final ProjectMapper projectMapper;
     private final ProjectAccess projectAccess;
     private final ActivityLogRecorder activityLogRecorder;
+    private final MergeRequestMapper mergeRequestMapper;
 
     public TaskService(
             CodingTaskMapper codingTaskMapper,
@@ -54,7 +57,8 @@ public class TaskService {
             RequirementMapper requirementMapper,
             ProjectMapper projectMapper,
             ProjectAccess projectAccess,
-            ActivityLogRecorder activityLogRecorder) {
+            ActivityLogRecorder activityLogRecorder,
+            MergeRequestMapper mergeRequestMapper) {
         this.codingTaskMapper = codingTaskMapper;
         this.taskRepositoryFreezeMapper = taskRepositoryFreezeMapper;
         this.taskStateHistoryMapper = taskStateHistoryMapper;
@@ -63,6 +67,7 @@ public class TaskService {
         this.projectMapper = projectMapper;
         this.projectAccess = projectAccess;
         this.activityLogRecorder = activityLogRecorder;
+        this.mergeRequestMapper = mergeRequestMapper;
     }
 
     public List<TaskView> listByRequirement(AuthUser user, String requirementId) {
@@ -81,9 +86,13 @@ public class TaskService {
         CodingTask task = requireTask(user, taskId);
         Project project = projectMapper.selectById(task.getProjectId());
         List<FrozenRepoView> frozen = frozenRepos(taskId);
+        List<MergeRequestView> mrs = openMergeRequests(taskId, frozen);
         return new TaskDetailView(
                 toView(task, project == null ? "" : project.getName(), frozen),
                 frozen,
+                mrs,
+                List.of(),
+                "审核页可用 verify/delivery 活动日志中的 testFileChanges，或后续对 diff 调用 TestFileChangeDetector",
                 unsupportedActions(task.getStatus()));
     }
 
@@ -281,6 +290,29 @@ public class TaskService {
                 .toList();
     }
 
+    private List<MergeRequestView> openMergeRequests(String taskId, List<FrozenRepoView> frozen) {
+        List<MergeRequestRecord> rows = mergeRequestMapper.selectList(new LambdaQueryWrapper<MergeRequestRecord>()
+                .eq(MergeRequestRecord::getTaskId, taskId)
+                .eq(MergeRequestRecord::getState, "OPEN"));
+        return rows.stream()
+                .map(row -> {
+                    String dir = frozen.stream()
+                            .filter(f -> f.projectRepositoryId().equals(row.getProjectRepositoryId()))
+                            .map(FrozenRepoView::localDirectoryName)
+                            .findFirst()
+                            .orElse(row.getProjectRepositoryId());
+                    return new MergeRequestView(
+                            row.getProjectRepositoryId(),
+                            dir,
+                            row.getUrl(),
+                            row.getExternalId(),
+                            row.getHeadSha(),
+                            row.getBranchName(),
+                            row.getState());
+                })
+                .toList();
+    }
+
     private UnsupportedActions unsupportedActions(String status) {
         boolean execution = true;
         boolean requestChanges = "WAITING_APPROVAL".equals(status);
@@ -383,6 +415,23 @@ public class TaskService {
             String retryReason) {
     }
 
-    public record TaskDetailView(TaskView task, List<FrozenRepoView> frozenRepositories, UnsupportedActions unsupported) {
+    public record MergeRequestView(
+            String projectRepositoryId,
+            String localDirectoryName,
+            String url,
+            String externalId,
+            String headSha,
+            String branchName,
+            String state) {
+    }
+
+    public record TaskDetailView(
+            TaskView task,
+            List<FrozenRepoView> frozenRepositories,
+            List<MergeRequestView> mergeRequests,
+            List<String> testFileChanges,
+            String testFileChangeHook,
+            UnsupportedActions unsupported) {
     }
 }
+

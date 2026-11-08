@@ -92,6 +92,17 @@ interface TaskDetailResponse {
     baseBranch: string
     deliveryState: string
   }>
+  mergeRequests?: Array<{
+    projectRepositoryId: string
+    localDirectoryName: string
+    url: string
+    externalId: string
+    headSha: string
+    branchName: string
+    state: string
+  }>
+  testFileChanges?: string[]
+  testFileChangeHook?: string
   unsupported: {
     startOrRetryBlocked: boolean
     startOrRetryReason: string
@@ -285,13 +296,20 @@ export const useWorkbenchStore = defineStore('workbench', () => {
     }))
     mapped.checkouts = mapped.frozenRepositories.map((repo) => ({
       directoryName: repo.directoryName,
-      changed: repo.deliveryState !== 'NONE',
+      changed: repo.deliveryState !== 'NONE' && repo.deliveryState !== 'FAILED',
     }))
+    mapped.mergeRequests = (detail.mergeRequests || []).map((mr) => ({
+      directoryName: mr.localDirectoryName,
+      url: mr.url,
+      headSha: mr.headSha,
+    }))
+    mapped.testFileChanges = detail.testFileChanges || []
     mapped.unsupported = detail.unsupported
     mapped.evidenceNote =
       detail.task.status === 'WAITING_APPROVAL'
-        ? '审核通过只改任务状态，不会合并 MR。推送与创建 MR 尚未接通。'
-        : '执行、验证、推送 MR 尚未接通。可做的人工动作会走真实接口。'
+        ? '审核通过只改任务状态，不会自动合并。Draft MR 由平台 verify/retry-delivery 创建。' +
+          (detail.testFileChangeHook ? ` 测试文件变更钩子：${detail.testFileChangeHook}` : '')
+        : '平台验证/交付已接通；Codex Agent / Session / 模型代理 / 容器验证仍未实现。'
     const idx = tasks.value.findIndex((item) => item.id === id)
     if (idx >= 0) {
       tasks.value[idx] = mapped
@@ -413,6 +431,55 @@ export const useWorkbenchStore = defineStore('workbench', () => {
     actionError.value = '要求修改需要在同一工作区开新 Session，尚未实现'
   }
 
+  async function verifyTask(id: string) {
+    actionError.value = ''
+    try {
+      const result = await apiFetch<{
+        status: string
+        verificationPassed: boolean
+        mergeRequests: Array<{ localDirectoryName: string; url: string; headSha: string }>
+        testFileChanges: string[]
+        message: string
+      }>(`/api/v1/tasks/${id}/verify`, { method: 'POST' })
+      const mapped = await loadTaskDetail(id)
+      mapped.mergeRequests = (result.mergeRequests || []).map((mr) => ({
+        directoryName: mr.localDirectoryName,
+        url: mr.url,
+        headSha: mr.headSha,
+      }))
+      mapped.testFileChanges = result.testFileChanges || []
+      mapped.logs = [result.message, ...(mapped.logs || [])]
+      await load(scope.value)
+    } catch (err) {
+      actionError.value = err instanceof Error ? err.message : '验证失败'
+      throw err
+    }
+  }
+
+  async function retryDelivery(id: string) {
+    actionError.value = ''
+    try {
+      const result = await apiFetch<{
+        status: string
+        mergeRequests: Array<{ localDirectoryName: string; url: string; headSha: string }>
+        testFileChanges: string[]
+        message: string
+      }>(`/api/v1/tasks/${id}/retry-delivery`, { method: 'POST' })
+      const mapped = await loadTaskDetail(id)
+      mapped.mergeRequests = (result.mergeRequests || []).map((mr) => ({
+        directoryName: mr.localDirectoryName,
+        url: mr.url,
+        headSha: mr.headSha,
+      }))
+      mapped.testFileChanges = result.testFileChanges || []
+      mapped.logs = [result.message, ...(mapped.logs || [])]
+      await load(scope.value)
+    } catch (err) {
+      actionError.value = err instanceof Error ? err.message : '重试交付失败'
+      throw err
+    }
+  }
+
   return {
     scope,
     loading,
@@ -440,5 +507,7 @@ export const useWorkbenchStore = defineStore('workbench', () => {
     abandonTask,
     approveTask,
     requestChanges,
+    verifyTask,
+    retryDelivery,
   }
 })

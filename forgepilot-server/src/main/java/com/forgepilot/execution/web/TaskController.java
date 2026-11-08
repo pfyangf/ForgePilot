@@ -1,5 +1,7 @@
 package com.forgepilot.execution.web;
 
+import com.forgepilot.delivery.service.TaskVerifyDeliveryService;
+import com.forgepilot.delivery.service.TaskVerifyDeliveryService.VerifyDeliveryResult;
 import com.forgepilot.execution.service.TaskService;
 import com.forgepilot.execution.service.TaskService.TaskDetailView;
 import com.forgepilot.system.security.AuthContext;
@@ -16,9 +18,11 @@ import org.springframework.web.bind.annotation.RestController;
 public class TaskController {
 
     private final TaskService taskService;
+    private final TaskVerifyDeliveryService verifyDeliveryService;
 
-    public TaskController(TaskService taskService) {
+    public TaskController(TaskService taskService, TaskVerifyDeliveryService verifyDeliveryService) {
         this.taskService = taskService;
+        this.verifyDeliveryService = verifyDeliveryService;
     }
 
     @GetMapping("/{taskId}")
@@ -39,5 +43,16 @@ public class TaskController {
     @PostMapping("/{taskId}/approve")
     public TaskDetailView approve(@PathVariable String taskId, @Valid @RequestBody(required = false) TaskActionRequest request) {
         return taskService.approve(AuthContext.require(), taskId, request == null ? new TaskActionRequest(null) : request);
+    }
+
+    /** 本机/开发验证：不假装 Codex 已跑；基于冻结仓库工作区执行项目命令并尝试交付。 */
+    @PostMapping("/{taskId}/verify")
+    public VerifyDeliveryResult verify(@PathVariable String taskId) {
+        return verifyDeliveryService.verify(AuthContext.require(), taskId);
+    }
+
+    @PostMapping("/{taskId}/retry-delivery")
+    public VerifyDeliveryResult retryDelivery(@PathVariable String taskId) {
+        return verifyDeliveryService.retryDelivery(AuthContext.require(), taskId);
     }
 }

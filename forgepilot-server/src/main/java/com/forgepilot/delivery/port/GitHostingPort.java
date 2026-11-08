@@ -8,11 +8,16 @@ import java.util.List;
  */
 public interface GitHostingPort {
 
+    boolean supports(String providerType);
+
     RepositoryView getRepository(RepositoryRef ref);
 
     List<BranchView> listBranches(RepositoryRef ref);
 
     DiffView compare(RepositoryRef ref, String from, String to);
+
+    /** 远端尚无该分支时从起点创建；已存在则返回当前 head。 */
+    BranchView ensureBranch(EnsureBranch command);
 
     MergeRequestView createOrGetDraft(CreateDraft command);
 
@@ -27,7 +32,10 @@ public interface GitHostingPort {
     record BranchView(String name, String headSha) {
     }
 
-    record DiffView(String from, String to, String summary) {
+    record DiffView(String from, String to, String summary, List<String> changedPaths) {
+    }
+
+    record EnsureBranch(RepositoryRef repository, String branchName, String startPointSha) {
     }
 
     record CreateDraft(
@@ -36,6 +44,7 @@ public interface GitHostingPort {
             String branchName,
             String headSha,
             String targetBranch,
+            String title,
             String idempotencyKey) {
     }
 
@@ -48,6 +57,7 @@ public interface GitHostingPort {
             String url,
             String branchName,
             String headSha,
-            String idempotencyKey) {
+            String idempotencyKey,
+            String state) {
     }
 }
