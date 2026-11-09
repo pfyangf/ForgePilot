@@ -1,12 +1,23 @@
 <template>
   <router-view v-if="route.name === 'login'" />
   <el-container v-else class="shell">
-    <el-aside class="aside" :width="asideWidth">
+    <el-aside class="aside" :class="{ 'aside--collapsed': collapsed }" :width="asideWidth">
       <div class="brand">
-        <div class="brand__mark" aria-hidden="true">FP</div>
-        <div v-if="!collapsed" class="brand__text">ForgePilot</div>
-        <button class="brand__toggle" type="button" :title="collapsed ? '展开菜单' : '收起菜单'" @click="toggleCollapsed">
-          <el-icon><component :is="collapsed ? Expand : Fold" /></el-icon>
+        <template v-if="!collapsed">
+          <div class="brand__mark" aria-hidden="true">FP</div>
+          <div class="brand__text">ForgePilot</div>
+          <button class="brand__toggle" type="button" title="收起菜单" @click="toggleCollapsed">
+            <el-icon><Fold /></el-icon>
+          </button>
+        </template>
+        <button
+          v-else
+          class="brand__toggle brand__toggle--solo"
+          type="button"
+          title="展开菜单"
+          @click="toggleCollapsed"
+        >
+          <el-icon><Expand /></el-icon>
         </button>
       </div>
       <el-menu
@@ -172,10 +183,22 @@ async function logout() {
 .aside {
   display: flex;
   flex-direction: column;
+  flex: 0 0 208px;
+  width: 208px !important;
+  max-width: 208px;
+  min-width: 208px;
   background: var(--fp-color-sidebar);
   color: var(--fp-color-sidebar-text);
   overflow: hidden;
-  transition: width 0.2s ease;
+  box-sizing: border-box;
+  transition: width 0.2s ease, flex-basis 0.2s ease, max-width 0.2s ease, min-width 0.2s ease;
+}
+
+.aside--collapsed {
+  flex-basis: 64px;
+  width: 64px !important;
+  max-width: 64px;
+  min-width: 64px;
 }
 
 .brand {
@@ -185,6 +208,13 @@ async function logout() {
   gap: 8px;
   padding: 0 12px;
   border-bottom: 1px solid rgba(148, 163, 184, 0.16);
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+.aside--collapsed .brand {
+  justify-content: center;
+  padding: 0;
 }
 
 .brand__mark {
@@ -221,6 +251,11 @@ async function logout() {
   cursor: pointer;
   display: grid;
   place-items: center;
+  flex: 0 0 auto;
+}
+
+.brand__toggle--solo {
+  margin-left: 0;
 }
 
 .brand__toggle:hover {
@@ -232,7 +267,14 @@ async function logout() {
   border-right: none !important;
   background: transparent;
   padding: 10px 8px;
+  overflow-x: hidden;
   overflow-y: auto;
+  box-sizing: border-box;
+}
+
+.aside--collapsed .menu {
+  padding: 10px 6px;
+  width: 100% !important;
 }
 
 .menu:not(.el-menu--collapse) {
@@ -247,6 +289,10 @@ async function logout() {
   border-right: none;
 }
 
+:deep(.el-menu--collapse) {
+  width: 100% !important;
+}
+
 :deep(.el-menu-item) {
   height: 40px;
   line-height: 40px;
@@ -257,6 +303,7 @@ async function logout() {
 
 :deep(.el-menu-item .el-icon) {
   color: inherit;
+  margin: 0;
 }
 
 :deep(.el-menu-item.is-active) {
@@ -271,11 +318,21 @@ async function logout() {
 :deep(.el-menu--collapse .el-menu-item) {
   padding: 0 !important;
   justify-content: center;
+  width: 100%;
+}
+
+:deep(.el-menu--collapse .el-menu-item .el-icon) {
+  margin: 0;
 }
 
 .aside-footer {
   padding: 12px;
   border-top: 1px solid rgba(148, 163, 184, 0.16);
+  box-sizing: border-box;
+}
+
+.aside--collapsed .aside-footer {
+  padding: 10px 6px;
 }
 
 .user-card {
@@ -285,11 +342,13 @@ async function logout() {
   padding: 8px;
   border-radius: 8px;
   background: rgba(15, 23, 42, 0.35);
+  overflow: hidden;
 }
 
 .user-card--collapsed {
   justify-content: center;
-  padding: 6px;
+  padding: 6px 0;
+  background: transparent;
 }
 
 .user-card__avatar {
@@ -326,6 +385,7 @@ async function logout() {
 
 .main-wrap {
   min-width: 0;
+  flex: 1;
   background: var(--fp-color-bg);
 }
 
