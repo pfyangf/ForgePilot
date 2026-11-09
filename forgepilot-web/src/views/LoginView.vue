@@ -21,7 +21,7 @@
           <el-button type="primary" native-type="submit" :loading="loading" class="submit">登录</el-button>
         </el-form-item>
       </el-form>
-      <p class="hint">本机演示：demo_member / ForgePilot!dev</p>
+      <p class="hint">本机演示：工作台用 demo_member，维护模型目录用 demo_admin，密码均为 ForgePilot!dev</p>
     </el-card>
   </div>
 </template>

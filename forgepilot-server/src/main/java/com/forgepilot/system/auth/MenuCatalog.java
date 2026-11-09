@@ -14,7 +14,7 @@ public class MenuCatalog {
 
     private static final Map<String, List<String>> ROLE_MENUS = Map.of(
             "PLATFORM_ADMIN", List.of("admin", "platform-guidance", "activity"),
-            "TENANT_ADMIN", List.of("dashboard", "projects", "tenant-guidance", "activity"),
+            "TENANT_ADMIN", List.of("dashboard", "projects", "catalog", "tenant-guidance", "activity"),
             "PROJECT_ADMIN", List.of("dashboard", "projects", "ai-coding", "delivery", "project-guidance", "activity"),
             "MEMBER", List.of("dashboard", "projects", "ai-coding", "delivery", "activity"));
 
