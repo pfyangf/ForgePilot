@@ -2,6 +2,7 @@ export interface SidebarItem {
   path: string
   label: string
   codes: string[]
+  icon: string
 }
 
 const GUIDANCE_LABELS: Record<string, string> = {
@@ -11,15 +12,15 @@ const GUIDANCE_LABELS: Record<string, string> = {
 }
 
 export const SIDEBAR_ITEMS: SidebarItem[] = [
-  { path: '/', label: '工作台', codes: ['dashboard'] },
-  { path: '/projects', label: '项目管理', codes: ['projects'] },
-  { path: '/coding', label: 'AI Coding', codes: ['ai-coding'] },
-  { path: '/delivery', label: '测试与交付', codes: ['delivery'] },
-  { path: '/guidance', label: '规约与文档', codes: ['platform-guidance', 'tenant-guidance', 'project-guidance'] },
-  { path: '/catalog', label: '模型与工具', codes: ['catalog'] },
-  { path: '/activity', label: '操作记录', codes: ['activity'] },
-  { path: '/nodes', label: '执行节点', codes: ['nodes'] },
-  { path: '/admin', label: '平台管理', codes: ['admin'] },
+  { path: '/', label: '工作台', codes: ['dashboard'], icon: 'Odometer' },
+  { path: '/projects', label: '项目管理', codes: ['projects'], icon: 'Folder' },
+  { path: '/coding', label: 'AI Coding', codes: ['ai-coding'], icon: 'MagicStick' },
+  { path: '/delivery', label: '测试与交付', codes: ['delivery'], icon: 'Upload' },
+  { path: '/guidance', label: '规约与文档', codes: ['platform-guidance', 'tenant-guidance', 'project-guidance'], icon: 'Document' },
+  { path: '/catalog', label: '模型与工具', codes: ['catalog'], icon: 'Cpu' },
+  { path: '/activity', label: '操作记录', codes: ['activity'], icon: 'Notebook' },
+  { path: '/nodes', label: '执行节点', codes: ['nodes'], icon: 'Connection' },
+  { path: '/admin', label: '平台管理', codes: ['admin'], icon: 'Setting' },
 ]
 
 export function visibleSidebarItems(menus: string[] | undefined | null): SidebarItem[] {

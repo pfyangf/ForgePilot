@@ -1,18 +1,23 @@
 <template>
-  <div>
-    <el-alert
-      type="info"
-      show-icon
-      :closable="false"
-      title="模型与编码工具目录"
-      description="由租户管理员维护。接口响应只有 hasSecret，不会回传 apiKey / ciphertext。演示种子使用 PLACEHOLDER 密文，不是生产密钥。"
-    />
-    <div class="toolbar">
-      <el-button type="primary" @click="openCreateProvider">新建 Provider</el-button>
-      <el-button type="primary" @click="showTool = true">新建编码工具</el-button>
-      <el-button :loading="loading" @click="refresh">刷新</el-button>
-      <span v-if="error" class="error">{{ error }}</span>
+  <div class="catalog">
+    <div class="page-header">
+      <div class="page-header__titles">
+        <h1 class="page-header__title">模型与工具</h1>
+        <p class="page-header__subtitle">租户管理员维护 Provider 与编码工具 · 密钥只显示是否已配置</p>
+      </div>
+      <div class="page-header__actions">
+        <el-button type="primary" @click="openCreateProvider">新建 Provider</el-button>
+        <el-button @click="showTool = true">新建编码工具</el-button>
+        <el-button :loading="loading" @click="refresh">刷新</el-button>
+      </div>
     </div>
+    <el-alert
+      v-if="error"
+      type="error"
+      :closable="false"
+      :title="error"
+      class="block"
+    />
 
     <el-card>
       <template #header>模型 Provider</template>
@@ -339,17 +344,8 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.toolbar {
-  display: flex;
-  gap: 12px;
-  align-items: center;
-  margin: 16px 0;
-}
 .block {
-  margin-top: 16px;
-}
-.error {
-  color: #b91c1c;
+  margin-top: 12px;
 }
 .models {
   display: flex;

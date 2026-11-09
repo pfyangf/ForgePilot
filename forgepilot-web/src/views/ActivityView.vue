@@ -1,28 +1,27 @@
 <template>
-  <div>
-    <el-alert
-      type="info"
-      show-icon
-      :closable="false"
-      title="操作记录与日报"
-      description="只追加、不可改删。载荷里的密钥字段会打码。默认按 Asia/Shanghai 汇总日报。"
-    />
-    <div class="toolbar">
-      <el-input v-model="filters.action" placeholder="动作，如 TASK_CREATE" clearable style="width: 200px" />
-      <el-input v-model="filters.projectId" placeholder="项目 ID" clearable style="width: 260px" />
-      <el-input v-model="filters.actorUserId" placeholder="操作者用户 ID" clearable style="width: 260px" />
-      <el-button type="primary" :loading="loading" @click="load">查询</el-button>
-      <el-button @click="exportJson">导出 JSON</el-button>
-      <el-button @click="exportCsv">导出 CSV</el-button>
-      <el-button @click="loadDaily">今日日报</el-button>
-      <el-button @click="exportDailyMd">导出日报 Markdown</el-button>
+  <div class="activity">
+    <div class="page-header">
+      <div class="page-header__titles">
+        <h1 class="page-header__title">操作记录</h1>
+        <p class="page-header__subtitle">只追加、不可改删 · 密钥字段打码 · Asia/Shanghai 日报</p>
+      </div>
+      <div class="page-header__actions">
+        <el-input v-model="filters.action" placeholder="动作，如 TASK_CREATE" clearable class="filter filter--sm" />
+        <el-input v-model="filters.projectId" placeholder="项目 ID" clearable class="filter filter--md" />
+        <el-input v-model="filters.actorUserId" placeholder="操作者用户 ID" clearable class="filter filter--md" />
+        <el-button type="primary" :loading="loading" @click="load">查询</el-button>
+        <el-button @click="exportJson">导出 JSON</el-button>
+        <el-button @click="exportCsv">导出 CSV</el-button>
+        <el-button @click="loadDaily">今日日报</el-button>
+        <el-button @click="exportDailyMd">导出日报 Markdown</el-button>
+      </div>
     </div>
-    <el-alert v-if="error" type="error" :closable="false" :title="error" />
+    <el-alert v-if="error" type="error" :closable="false" :title="error" class="block" />
     <el-card>
       <el-table :data="rows" empty-text="没有记录" height="420">
         <el-table-column prop="occurredAt" label="时间" width="190" />
         <el-table-column prop="action" label="动作" width="200" />
-        <el-table-column label="操作者" width="220">
+        <el-table-column label="操作者" min-width="180">
           <template #default="{ row }">
             {{ formatActor(row) }}
           </template>
@@ -32,7 +31,7 @@
         <el-table-column prop="summary" label="摘要" />
       </el-table>
     </el-card>
-    <el-card v-if="dailyMd" class="block">
+    <el-card v-if="dailyMd" class="compose-gap">
       <template #header>日报 Markdown</template>
       <pre class="log">{{ dailyMd }}</pre>
     </el-card>
@@ -68,10 +67,10 @@ const filters = reactive({
 })
 
 function formatActor(row: ActivityRow) {
-  const name = row.actorDisplayName || row.actorUsername
-  if (name && row.actorUserId) return `${name} (${row.actorUserId})`
-  if (name) return name
-  return row.actorUserId || '-'
+  if (row.actorDisplayName && row.actorUsername) {
+    return `${row.actorDisplayName}（${row.actorUsername}）`
+  }
+  return row.actorDisplayName || row.actorUsername || row.actorUserId || '-'
 }
 
 function queryString() {
@@ -154,14 +153,23 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.toolbar {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-  margin: 16px 0;
+.page-header__actions {
+  max-width: 860px;
+}
+.filter {
+  width: 160px;
+}
+.filter--sm {
+  width: 160px;
+}
+.filter--md {
+  width: 200px;
 }
 .block {
-  margin-top: 16px;
+  margin-bottom: 12px;
+}
+.compose-gap {
+  margin-top: 12px;
 }
 .log {
   white-space: pre-wrap;
