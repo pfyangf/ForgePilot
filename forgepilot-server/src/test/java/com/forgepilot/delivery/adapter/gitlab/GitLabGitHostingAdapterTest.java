@@ -42,7 +42,7 @@ class GitLabGitHostingAdapterTest {
             return script.get(idx.getAndIncrement());
         };
 
-        var adapter = new GitLabGitHostingAdapter(client, new ObjectMapper(), () -> "secret-token");
+        var adapter = new GitLabGitHostingAdapter(client, new ObjectMapper(), "secret-token");
         assertThat(adapter.supports("gitlab")).isTrue();
         RepositoryRef ref = new RepositoryRef("repo-1", "GITLAB", "99", "https://gitlab.example.com/demo/pay.git");
         CreateDraft cmd = new CreateDraft("t1", ref, "fp/t1", "abc123", "main", "Draft", "t1:repo-1");

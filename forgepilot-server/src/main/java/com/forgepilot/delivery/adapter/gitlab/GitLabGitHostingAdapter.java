@@ -31,13 +31,10 @@ public class GitLabGitHostingAdapter implements GitHostingPort {
             GitLabApiClient apiClient,
             ObjectMapper objectMapper,
             @Value("${forgepilot.gitlab.token:}") String defaultToken) {
-        this(apiClient, objectMapper, () -> defaultToken == null ? "" : defaultToken);
-    }
-
-    GitLabGitHostingAdapter(GitLabApiClient apiClient, ObjectMapper objectMapper, Supplier<String> tokenSupplier) {
         this.apiClient = apiClient;
         this.objectMapper = objectMapper;
-        this.tokenSupplier = tokenSupplier;
+        String token = defaultToken == null ? "" : defaultToken;
+        this.tokenSupplier = () -> token;
     }
 
     public String providerType() {
