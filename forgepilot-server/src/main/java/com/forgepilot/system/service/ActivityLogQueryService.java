@@ -10,13 +10,17 @@ import com.forgepilot.system.activity.DailyReportBuilder.ActivityEntry;
 import com.forgepilot.system.activity.DailyReportBuilder.WaitingItem;
 import com.forgepilot.system.auth.AuthUser;
 import com.forgepilot.system.domain.ActivityLog;
+import com.forgepilot.system.domain.User;
 import com.forgepilot.system.persistence.ActivityLogMapper;
+import com.forgepilot.system.persistence.UserMapper;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.springframework.http.HttpStatus;
@@ -31,16 +35,19 @@ public class ActivityLogQueryService {
 
     private final ActivityLogMapper activityLogMapper;
     private final CodingTaskMapper codingTaskMapper;
+    private final UserMapper userMapper;
     private final ProjectAccess projectAccess;
     private final RoleAccess roleAccess;
 
     public ActivityLogQueryService(
             ActivityLogMapper activityLogMapper,
             CodingTaskMapper codingTaskMapper,
+            UserMapper userMapper,
             ProjectAccess projectAccess,
             RoleAccess roleAccess) {
         this.activityLogMapper = activityLogMapper;
         this.codingTaskMapper = codingTaskMapper;
+        this.userMapper = userMapper;
         this.projectAccess = projectAccess;
         this.roleAccess = roleAccess;
     }
@@ -49,20 +56,27 @@ public class ActivityLogQueryService {
             AuthUser user, String tenantId, String projectId, String actorUserId, String action, Instant from, Instant to) {
         LambdaQueryWrapper<ActivityLog> wrapper = buildWrapper(user, tenantId, projectId, actorUserId, action, from, to);
         wrapper.orderByDesc(ActivityLog::getOccurredAt).last("limit 500");
-        return activityLogMapper.selectList(wrapper).stream().map(this::toView).toList();
+        List<ActivityLog> logs = activityLogMapper.selectList(wrapper);
+        Map<String, User> users = loadActors(logs);
+        return logs.stream().map(log -> toView(log, users)).toList();
     }
 
     public String exportCsv(
             AuthUser user, String tenantId, String projectId, String actorUserId, String action, Instant from, Instant to) {
         List<ActivityView> rows = query(user, tenantId, projectId, actorUserId, action, from, to);
         StringBuilder csv = new StringBuilder();
-        csv.append("occurredAt,action,actorUserId,tenantId,projectId,targetType,targetId,result,summary\n");
+        csv.append(
+                "occurredAt,action,actorUserId,actorUsername,actorDisplayName,tenantId,projectId,targetType,targetId,result,summary\n");
         for (ActivityView row : rows) {
             csv.append(csv(row.occurredAt() == null ? "" : row.occurredAt().toString()))
                     .append(',')
                     .append(csv(row.action()))
                     .append(',')
                     .append(csv(row.actorUserId()))
+                    .append(',')
+                    .append(csv(row.actorUsername()))
+                    .append(',')
+                    .append(csv(row.actorDisplayName()))
                     .append(',')
                     .append(csv(row.tenantId()))
                     .append(',')
@@ -92,6 +106,23 @@ public class ActivityLogQueryService {
 
     public String dailyMarkdown(AuthUser user, LocalDate day, String tenantId) {
         return DailyReportBuilder.toMarkdown(dailyReport(user, day, tenantId));
+    }
+
+    private Map<String, User> loadActors(List<ActivityLog> logs) {
+        Set<String> ids = logs.stream()
+                .map(ActivityLog::getActorUserId)
+                .filter(Objects::nonNull)
+                .filter(id -> !id.isBlank())
+                .collect(Collectors.toSet());
+        if (ids.isEmpty()) {
+            return Map.of();
+        }
+        List<User> users = userMapper.selectList(new LambdaQueryWrapper<User>().in(User::getId, ids));
+        Map<String, User> byId = new HashMap<>();
+        for (User user : users) {
+            byId.put(user.getId(), user);
+        }
+        return byId;
     }
 
     private List<WaitingItem> waitingItems(AuthUser user) {
@@ -173,13 +204,16 @@ public class ActivityLogQueryService {
         return wrapper;
     }
 
-    private ActivityView toView(ActivityLog log) {
+    private ActivityView toView(ActivityLog log, Map<String, User> users) {
         Map<String, Object> payload = ActivityPayloadMasker.mask(log.getPayload());
+        User actor = log.getActorUserId() == null ? null : users.get(log.getActorUserId());
         return new ActivityView(
                 log.getId(),
                 log.getTenantId(),
                 log.getActorKind(),
                 log.getActorUserId(),
+                actor == null ? null : actor.getUsername(),
+                actor == null ? null : actor.getDisplayName(),
                 log.getOccurredAt(),
                 log.getAction(),
                 log.getTargetType(),
@@ -209,6 +243,8 @@ public class ActivityLogQueryService {
             String tenantId,
             String actorKind,
             String actorUserId,
+            String actorUsername,
+            String actorDisplayName,
             Instant occurredAt,
             String action,
             String targetType,
