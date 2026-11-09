@@ -12,6 +12,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.function.Supplier;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
@@ -27,6 +28,7 @@ public class GitLabGitHostingAdapter implements GitHostingPort {
     private final ObjectMapper objectMapper;
     private final Supplier<String> tokenSupplier;
 
+    @Autowired
     public GitLabGitHostingAdapter(
             GitLabApiClient apiClient,
             ObjectMapper objectMapper,
