@@ -10,7 +10,7 @@ ForgePilot（云端 AI Coding 平台）按公司租户隔离数据。用户创�
 
 - 新的设计、产品、架构、决策文档一律放入 `docs/`，按类别分目录。
 - 根目录只保留 `README.md` 和 `AGENTS.md`。不要在根目录新增方案、PRD 或 ADR。
-- 现有类别：`docs/requirements/`（产品需求），`docs/architecture/`（架构）。索引写在 `docs/README.md`。
+- 现有类别：`docs/requirements/`（产品需求），`docs/architecture/`（架构），`docs/operations/`（部署与运维）。索引写在 `docs/README.md`。
 - 需要新类别时（例如以后把 ADR 拆到 `docs/decisions/`），先建目录，再同时更新 `docs/README.md` 和本文件的目录地图。
 - 改需求或架构时直接修改对应基线正文，保持前后一致。不要只在文末追加变更记录而留下旧结论。
 
@@ -18,6 +18,7 @@ ForgePilot（云端 AI Coding 平台）按公司租户隔离数据。用户创�
 
 - `docs/requirements/mvp-prd.md`：MVP 需求基线 V1.2。
 - `docs/architecture/system-architecture.md`：架构基线 V1.2，含 ADR。
+- `docs/operations/basic-environment.md`：小规格云主机上的基础环境部署说明。
 
 ## 架构硬约束
 
