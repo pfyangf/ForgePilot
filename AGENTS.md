@@ -10,7 +10,7 @@ ForgePilot（云端 AI Coding 平台）按公司租户隔离数据。用户创�
 
 - 新的设计、产品、架构、决策文档一律放入 `docs/`，按类别分目录。
 - 根目录只保留 `README.md` 和 `AGENTS.md`。不要在根目录新增方案、PRD 或 ADR。
-- 现有类别：`docs/requirements/`（产品需求），`docs/architecture/`（架构），`docs/operations/`（部署与运维）。索引写在 `docs/README.md`。
+- 现有类别：`docs/requirements/`（产品需求），`docs/architecture/`（架构），`docs/operations/`（部署与运维），`docs/frontend/`（前端实现约定）。索引写在 `docs/README.md`。
 - 需要新类别时（例如以后把 ADR 拆到 `docs/decisions/`），先建目录，再同时更新 `docs/README.md` 和本文件的目录地图。
 - 改需求或架构时直接修改对应基线正文，保持前后一致。不要只在文末追加变更记录而留下旧结论。
 
@@ -19,6 +19,7 @@ ForgePilot（云端 AI Coding 平台）按公司租户隔离数据。用户创�
 - `docs/requirements/mvp-prd.md`：MVP 需求基线 V1.2。
 - `docs/architecture/system-architecture.md`：架构基线 V1.2，含 ADR。
 - `docs/operations/basic-environment.md`：小规格云主机上的基础环境部署说明。
+- `docs/frontend/ui-style.md`：工作台样式规范。
 
 ## 架构硬约束
 
@@ -151,6 +152,18 @@ Agent Execution Service 是独立进程，负责镜像与克隆、容器、Agent
 - 创建 MR 必须幂等，范围是任务加仓库。同一仓库只保持一条开放 MR；head 前进时更新这条 MR。不同仓库各有自己的开放 MR。
 - 部分仓库推送或创建 MR 失败时，已经成功的 MR 保留，任务进入 `WAITING_USER`，而不是 `FAILED`。重试只补未完成的仓库，仍用同一个分支名。
 - 审核是任务级的一次决定，覆盖该任务的全部 Draft MR 和共享证据。审核通过把任务标为 `COMPLETED`，不要自动合并。要求修改时，在同一工作区上开新的 Session。
+
+## 前端样式
+
+视觉与组件用法以 `docs/frontend/ui-style.md` 为准，令牌写在 `forgepilot-web/src/styles/base.css`。
+
+- 只使用 Element Plus，不要再引入另一套 UI 库。
+- 新页面和改布局时使用 `--fp-*` 变量，不要随手写互不一致的颜色、间距或字体。
+- 不要用内联 `style` 控制宽高和间距。
+- 短表单（登录等）标签放在上方；标签在左侧时必须给统一的 `label-width`，避免「用户名」「密码」把输入框挤歪。
+- 中文字体栈把 `PingFang SC`、`Microsoft YaHei` 放在 `Segoe UI` 前面。
+- 登录页和空状态全视口居中。登录后的壳层保持 220px 侧栏与 56px 顶栏对齐。
+- 改界面后检查对齐：同一列表单控件左边缘对齐，侧栏和顶栏没有错位。
 
 ## 工作台
 

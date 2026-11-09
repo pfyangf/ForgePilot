@@ -1,5 +1,5 @@
 <template>
-  <div>
+  <div class="page-stack">
     <el-alert
       type="success"
       show-icon
@@ -91,17 +91,13 @@ watch(
 </script>
 
 <style scoped>
-.toolbar,
-.stats,
-.block {
-  margin-top: 16px;
-}
 .toolbar {
   display: flex;
-  gap: 12px;
+  gap: var(--fp-space-3);
   align-items: center;
+  flex-wrap: wrap;
 }
 .error {
-  color: #b91c1c;
+  color: var(--fp-color-danger);
 }
 </style>

@@ -1,0 +1,78 @@
+/* 全局样式令牌与重置。页面布局遵循 docs/frontend/ui-style.md */
+
+:root {
+  --fp-color-bg: #f5f7fa;
+  --fp-color-surface: #ffffff;
+  --fp-color-text: #303133;
+  --fp-color-text-secondary: #606266;
+  --fp-color-muted: #909399;
+  --fp-color-border: #e4e7ed;
+  --fp-color-primary: #409eff;
+  --fp-color-danger: #f56c6c;
+  --fp-sidebar-width: 220px;
+  --fp-header-height: 56px;
+  --fp-space-1: 4px;
+  --fp-space-2: 8px;
+  --fp-space-3: 12px;
+  --fp-space-4: 16px;
+  --fp-space-5: 24px;
+  --fp-radius: 8px;
+  --fp-font: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans SC", system-ui, sans-serif;
+  --fp-font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#app {
+  margin: 0;
+  min-height: 100%;
+}
+
+body {
+  font-family: var(--fp-font);
+  color: var(--fp-color-text);
+  background: var(--fp-color-bg);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+#app {
+  min-height: 100vh;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+
+.page-stack > * + * {
+  margin-top: var(--fp-space-4);
+}
+
+.log,
+.diff {
+  font-family: var(--fp-font-mono);
+  white-space: pre-wrap;
+  background: #0f172a;
+  color: #e2e8f0;
+  padding: var(--fp-space-3);
+  border-radius: var(--fp-radius);
+  max-height: 240px;
+  overflow: auto;
+}
+
+.diff-add {
+  color: #86efac;
+}
+
+.diff-del {
+  color: #fca5a5;
+}

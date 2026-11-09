@@ -1,9 +1,9 @@
 <template>
   <router-view v-if="route.name === 'login'" />
   <el-container v-else class="shell">
-    <el-aside width="220px">
+    <el-aside class="aside" width="220px">
       <div class="brand">ForgePilot</div>
-      <el-menu :default-active="active" router>
+      <el-menu :default-active="active" router class="menu">
         <el-menu-item index="/">工作台</el-menu-item>
         <el-menu-item index="/projects">项目管理</el-menu-item>
         <el-menu-item index="/coding">AI Coding</el-menu-item>
@@ -15,15 +15,15 @@
         <el-menu-item index="/admin">平台管理</el-menu-item>
       </el-menu>
     </el-aside>
-    <el-container>
+    <el-container class="main-wrap">
       <el-header class="header">
-        <span>云端 AI Coding 平台 · 个人工作台</span>
+        <span class="title">云端 AI Coding 平台 · 个人工作台</span>
         <div class="user" v-if="auth.user">
           <span>{{ auth.user.displayName }}（{{ auth.user.username }}）</span>
           <el-button link type="primary" @click="logout">退出</el-button>
         </div>
       </el-header>
-      <el-main>
+      <el-main class="content">
         <router-view />
       </el-main>
     </el-container>
@@ -59,46 +59,62 @@ async function logout() {
 }
 </script>
 
-<style>
-body {
-  margin: 0;
-  font-family: 'Segoe UI', 'PingFang SC', sans-serif;
-  background: #f5f7fa;
-}
+<style scoped>
 .shell {
   min-height: 100vh;
 }
-.brand {
-  padding: 20px 16px 8px;
-  font-weight: 700;
+
+.aside {
+  background: var(--fp-color-surface);
+  border-right: 1px solid var(--fp-color-border);
+  overflow-x: hidden;
 }
+
+.brand {
+  height: var(--fp-header-height);
+  display: flex;
+  align-items: center;
+  padding: 0 var(--fp-space-4);
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--fp-color-text);
+  border-bottom: 1px solid var(--fp-color-border);
+}
+
+.menu {
+  border-right: none;
+}
+
+.main-wrap {
+  min-width: 0;
+  background: var(--fp-color-bg);
+}
+
 .header {
+  height: var(--fp-header-height);
   display: flex;
   align-items: center;
   justify-content: space-between;
-  background: #fff;
-  border-bottom: 1px solid #e5e7eb;
+  padding: 0 var(--fp-space-5);
+  background: var(--fp-color-surface);
+  border-bottom: 1px solid var(--fp-color-border);
 }
+
+.title {
+  color: var(--fp-color-text-secondary);
+  font-size: 14px;
+}
+
 .user {
   display: flex;
-  gap: 8px;
+  gap: var(--fp-space-2);
   align-items: center;
+  color: var(--fp-color-text);
+  font-size: 14px;
 }
-.log,
-.diff {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  white-space: pre-wrap;
-  background: #0f172a;
-  color: #e2e8f0;
-  padding: 12px;
-  border-radius: 8px;
-  max-height: 240px;
-  overflow: auto;
+
+.content {
+  padding: var(--fp-space-5);
 }
-.diff-add {
-  color: #86efac;
-}
-.diff-del {
-  color: #fca5a5;
-}
+
 </style>
