@@ -22,7 +22,11 @@
       <el-table :data="rows" empty-text="没有记录" height="420">
         <el-table-column prop="occurredAt" label="时间" width="190" />
         <el-table-column prop="action" label="动作" width="200" />
-        <el-table-column prop="actorUserId" label="操作者" width="280" />
+        <el-table-column label="操作者" width="220">
+          <template #default="{ row }">
+            {{ formatActor(row) }}
+          </template>
+        </el-table-column>
         <el-table-column prop="projectId" label="项目" width="280" />
         <el-table-column prop="result" label="结果" width="90" />
         <el-table-column prop="summary" label="摘要" />
@@ -44,7 +48,9 @@ interface ActivityRow {
   id: string
   occurredAt: string
   action: string
-  actorUserId: string
+  actorUserId: string | null
+  actorUsername: string | null
+  actorDisplayName: string | null
   projectId: string
   result: string
   summary: string
@@ -60,6 +66,13 @@ const filters = reactive({
   projectId: '',
   actorUserId: '',
 })
+
+function formatActor(row: ActivityRow) {
+  const name = row.actorDisplayName || row.actorUsername
+  if (name && row.actorUserId) return `${name} (${row.actorUserId})`
+  if (name) return name
+  return row.actorUserId || '-'
+}
 
 function queryString() {
   const params = new URLSearchParams()
@@ -149,5 +162,9 @@ onMounted(() => {
 }
 .block {
   margin-top: 16px;
+}
+.log {
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 </style>
