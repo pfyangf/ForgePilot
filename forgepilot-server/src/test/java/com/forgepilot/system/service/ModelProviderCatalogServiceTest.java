@@ -201,6 +201,39 @@ class ModelProviderCatalogServiceTest {
         assertThat(captor.getValue().getExtraConfig()).containsKey("models");
     }
 
+
+    @Test
+    void testRecordsFailureResultWhenUpstreamUnreachable() {
+        ModelProvider provider = ownedProvider();
+        provider.setBaseUrl("http://127.0.0.1:9/v1");
+        provider.setUpstreamWireApi("responses");
+        when(modelProviderMapper.selectById("p1")).thenReturn(provider);
+        IntegrationSecret secret = new IntegrationSecret();
+        secret.setId("s1");
+        secret.setCiphertext("sk-test".getBytes());
+        when(secretMapper.selectById("s1")).thenReturn(secret);
+
+        AuthUser admin = new AuthUser("a1", "demo_admin", "管理员", "t1", List.of("TENANT_ADMIN"), List.of());
+        var result = service.test(admin, "p1", "gpt-4o");
+
+        assertThat(result.ok()).isFalse();
+        verify(recorder)
+                .record(
+                        eq("t1"),
+                        eq("USER"),
+                        eq("a1"),
+                        eq("MODEL_PROVIDER_TEST"),
+                        eq("MODEL_PROVIDER"),
+                        eq("p1"),
+                        any(),
+                        any(),
+                        any(),
+                        any(),
+                        any(),
+                        any(),
+                        eq("FAILURE"));
+    }
+
     @Test
     void testRequiresSecret() {
         ModelProvider provider = ownedProvider();

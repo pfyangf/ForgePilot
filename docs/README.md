@@ -27,7 +27,7 @@
 | --- | --- | --- |
 | [`docs/requirements/`](requirements/) | 产品需求 | [MVP 需求规格说明书 V1.2](requirements/mvp-prd.md) |
 | [`docs/architecture/`](architecture/) | 架构设计 | [系统基础架构设计说明书 V1.2](architecture/system-architecture.md) |
-| [`docs/operations/`](operations/) | 部署与运维 | [基础环境部署说明](operations/basic-environment.md) |
+| [`docs/operations/`](operations/) | 部署与运维 | [基础环境部署说明](operations/basic-environment.md)、[控制面 JAR 部署注意](operations/control-plane-jar-deploy.md) |
 | [`docs/frontend/`](frontend/) | 前端实现约定 | [样式规范](frontend/ui-style.md) |
 
 架构说明书中的 ADR 表是当前的决策记录。尚未单独设立 `docs/decisions/`。将来若把单条 ADR 拆成独立文件，再新增该目录并回写本索引。
@@ -37,7 +37,7 @@
 1. 仓库根目录 [`AGENTS.md`](../AGENTS.md)：实现时不能违反的硬约束。
 2. [MVP 需求规格说明书](requirements/mvp-prd.md)：做什么、不做什么、如何验收。
 3. [系统基础架构设计说明书](architecture/system-architecture.md)：控制面、执行面、工作区、凭证、事件和部署如何落地。
-4. [基础环境部署说明](operations/basic-environment.md)：在小规格云主机上做功能验收的精简部署步骤。
+4. [基础环境部署说明](operations/basic-environment.md)：在小规格云主机上做功能验收的精简部署步骤。覆盖运行中 jar 前先读 [控制面 JAR 部署注意](operations/control-plane-jar-deploy.md)。
 5. [前端样式规范](frontend/ui-style.md)：工作台视觉与 Element Plus 的用法。
 
 两份 V1.2 正文都是基线。V1.1 里的单组织、单仓库、三种角色和「不做多租户」已经撤回。若与更早的口头结论或 V1.1 草稿冲突，以这两份文档和 `AGENTS.md` 为准。

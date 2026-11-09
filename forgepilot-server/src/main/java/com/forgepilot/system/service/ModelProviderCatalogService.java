@@ -244,7 +244,7 @@ public class ModelProviderCatalogService {
                         "latencyMs", result.latencyMs(),
                         "modelCode", chosen == null ? "" : chosen,
                         "message", result.message() == null ? "" : result.message()),
-                result.ok() ? "SUCCESS" : "FAILED");
+                result.ok() ? "SUCCESS" : "FAILURE");
         return result;
     }
 
