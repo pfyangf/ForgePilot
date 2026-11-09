@@ -39,6 +39,10 @@ management:
     health:
       probes:
         enabled: true
+  health:
+    rabbit:
+      # 与 forgepilot.rabbit.enabled 对齐；精简部署不起 RabbitMQ 时不要把整体 health 打成 DOWN
+      enabled: ${FORGEPILOT_RABBIT_ENABLED:false}
 
 forgepilot:
 

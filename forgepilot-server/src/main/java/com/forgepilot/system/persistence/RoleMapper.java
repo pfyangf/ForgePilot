@@ -14,14 +14,14 @@ public interface RoleMapper extends BaseMapper<Role> {
             select r.id, r.code, r.name
             from sys_role r
             inner join sys_user_role ur on ur.role_id = r.id
-            where ur.user_id = #{userId}
+            where ur.user_id = CAST(#{userId} AS uuid)
             """)
     List<Role> findByUserId(String userId);
 
     @Select("select id, code, name from sys_role where code = #{code}")
     Role findByCode(String code);
 
-    @Insert("insert into sys_user_role (user_id, role_id) values (#{userId}, #{roleId})")
+    @Insert("insert into sys_user_role (user_id, role_id) values (CAST(#{userId} AS uuid), CAST(#{roleId} AS uuid))")
     int insertUserRole(@org.apache.ibatis.annotations.Param("userId") String userId,
             @org.apache.ibatis.annotations.Param("roleId") String roleId);
 }

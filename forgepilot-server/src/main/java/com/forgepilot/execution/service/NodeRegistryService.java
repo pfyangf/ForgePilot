@@ -72,7 +72,7 @@ public class NodeRegistryService {
             activityLogRecorder.record(
                     tenantIdForLog,
                     "SYSTEM",
-                    "execution-node",
+                    null,
                     "NODE_REGISTER",
                     "EXECUTION_NODE",
                     node.getId(),
@@ -95,7 +95,7 @@ public class NodeRegistryService {
         activityLogRecorder.record(
                 tenantIdForLog,
                 "SYSTEM",
-                "execution-node",
+                null,
                 "NODE_REGISTER",
                 "EXECUTION_NODE",
                 existing.getId(),
