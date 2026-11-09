@@ -13,6 +13,8 @@ import RequirementDetailView from '@/views/RequirementDetailView.vue'
 import TaskDetailView from '@/views/TaskDetailView.vue'
 import WorkbenchView from '@/views/WorkbenchView.vue'
 import { getAccessToken } from '@/api/http'
+import { canAccessPath, firstMenuPath } from '@/domain/menus'
+import { useAuthStore } from '@/stores/auth'
 
 const router = createRouter({
   history: createWebHistory(),
@@ -41,12 +43,26 @@ const router = createRouter({
   ],
 })
 
-router.beforeEach((to) => {
+router.beforeEach(async (to) => {
   if (to.meta.public) {
     return true
   }
   if (!getAccessToken()) {
     return { name: 'login', query: { redirect: to.fullPath } }
+  }
+  const auth = useAuthStore()
+  if (!auth.user) {
+    await auth.restoreSession()
+  }
+  if (!auth.user) {
+    return { name: 'login', query: { redirect: to.fullPath } }
+  }
+  if (!canAccessPath(to.path, auth.user.menus)) {
+    const fallback = firstMenuPath(auth.user.menus)
+    if (fallback === to.path) {
+      return true
+    }
+    return { path: fallback }
   }
   return true
 })

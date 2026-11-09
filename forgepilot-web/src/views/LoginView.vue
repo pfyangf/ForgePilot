@@ -21,18 +21,20 @@
           <el-button type="primary" native-type="submit" :loading="loading" class="submit">登录</el-button>
         </el-form-item>
       </el-form>
-      <p class="hint">本机演示：工作台用 demo_member，维护模型目录用 demo_admin，密码均为 ForgePilot!dev</p>
+      <p class="hint">本机演示：工作台用 demo_member，维护模型目录用 demo_admin，平台管理和执行节点用 platform_admin，密码均为 ForgePilot!dev</p>
     </el-card>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { ApiError } from '@/api/http'
+import { canAccessPath, firstMenuPath } from '@/domain/menus'
 import { useAuthStore } from '@/stores/auth'
 
 const auth = useAuthStore()
+const route = useRoute()
 const router = useRouter()
 const username = ref('demo_member')
 const password = ref('ForgePilot!dev')
@@ -44,7 +46,12 @@ async function submit() {
   error.value = ''
   try {
     await auth.login(username.value.trim(), password.value)
-    await router.replace('/')
+    const requested = typeof route.query.redirect === 'string' ? route.query.redirect : ''
+    const target =
+      requested && canAccessPath(requested, auth.user?.menus)
+        ? requested
+        : firstMenuPath(auth.user?.menus)
+    await router.replace(target)
   } catch (err) {
     error.value = err instanceof ApiError ? err.message : '登录失败'
   } finally {

@@ -4,15 +4,9 @@
     <el-aside class="aside" width="220px">
       <div class="brand">ForgePilot</div>
       <el-menu :default-active="active" router class="menu">
-        <el-menu-item index="/">工作台</el-menu-item>
-        <el-menu-item index="/projects">项目管理</el-menu-item>
-        <el-menu-item index="/coding">AI Coding</el-menu-item>
-        <el-menu-item index="/delivery">测试与交付</el-menu-item>
-        <el-menu-item index="/guidance">规约与文档</el-menu-item>
-        <el-menu-item v-if="canMaintainCatalog" index="/catalog">模型与工具</el-menu-item>
-        <el-menu-item index="/activity">操作记录</el-menu-item>
-        <el-menu-item index="/nodes">执行节点</el-menu-item>
-        <el-menu-item v-if="canSeePlatformAdmin" index="/admin">平台管理</el-menu-item>
+        <el-menu-item v-for="item in menuItems" :key="item.path" :index="item.path">
+          {{ item.label }}
+        </el-menu-item>
       </el-menu>
     </el-aside>
     <el-container class="main-wrap">
@@ -33,6 +27,7 @@
 <script setup lang="ts">
 import { computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { visibleSidebarItems } from '@/domain/menus'
 import { useAuthStore } from '@/stores/auth'
 
 const route = useRoute()
@@ -49,12 +44,7 @@ const active = computed(() => {
   return route.path
 })
 
-function hasRole(role: string) {
-  return auth.user?.roles?.includes(role) === true
-}
-
-const canMaintainCatalog = computed(() => hasRole('TENANT_ADMIN'))
-const canSeePlatformAdmin = computed(() => hasRole('PLATFORM_ADMIN'))
+const menuItems = computed(() => visibleSidebarItems(auth.user?.menus))
 
 onMounted(() => {
   void auth.restoreSession()

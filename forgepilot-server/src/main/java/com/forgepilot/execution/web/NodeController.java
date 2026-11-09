@@ -4,6 +4,7 @@ import com.forgepilot.execution.service.NodeRegistryService;
 import com.forgepilot.execution.service.NodeRegistryService.Assignment;
 import com.forgepilot.execution.service.NodeRegistryService.NodeView;
 import com.forgepilot.system.security.AuthContext;
+import com.forgepilot.system.service.RoleAccess;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import java.util.List;
@@ -23,21 +24,24 @@ import org.springframework.web.server.ResponseStatusException;
 public class NodeController {
 
     private final NodeRegistryService nodeRegistryService;
+    private final RoleAccess roleAccess;
     private final boolean internalConfigured;
     private final String internalToken;
 
     public NodeController(
             NodeRegistryService nodeRegistryService,
+            RoleAccess roleAccess,
             @Value("${forgepilot.internal-api.configured:false}") boolean internalConfigured,
             @Value("${forgepilot.internal-api.token:}") String internalToken) {
         this.nodeRegistryService = nodeRegistryService;
+        this.roleAccess = roleAccess;
         this.internalConfigured = internalConfigured;
         this.internalToken = internalToken == null ? "" : internalToken;
     }
 
     @GetMapping("/nodes")
     public List<NodeView> list() {
-        AuthContext.require();
+        roleAccess.requirePlatformAdmin(AuthContext.require());
         return nodeRegistryService.listNodes();
     }
 
