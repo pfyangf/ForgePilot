@@ -31,6 +31,7 @@ public class CodingTask {
     private String modelProviderId;
     private String modelId;
     private String predecessorTaskId;
+    private String defectId;
     private String createdBy;
     private java.time.Instant queuedAt;
     /** 进入 COMPLETED/FAILED/CANCELLED 的时间；工作区保留宽限以此为准 */

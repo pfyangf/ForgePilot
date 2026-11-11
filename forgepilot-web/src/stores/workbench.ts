@@ -31,6 +31,8 @@ interface ApiTask {
   id: string
   requirementId: string
   title: string
+  taskType?: string
+  defectId?: string | null
   status: string
   sessionStatus: string | null
   createdBy: string
@@ -135,6 +137,8 @@ function toTask(item: ApiTask): WorkTask {
     id: item.id,
     requirementId: item.requirementId,
     title: item.title,
+    taskType: item.taskType,
+    defectId: item.defectId,
     status: item.status,
     sessionStatus: item.sessionStatus,
     sessionId: null,
@@ -385,15 +389,21 @@ export const useWorkbenchStore = defineStore('workbench', () => {
     requirement.suggestions = requirement.suggestions.filter((item) => item.id !== suggestionId)
   }
 
-  async function createTask(requirementId: string, title: string) {
+  async function createTask(
+    requirementId: string,
+    title: string,
+    taskType = 'IMPLEMENT',
+    defectId?: string,
+  ) {
     actionError.value = ''
     try {
       await apiFetch(`/api/v1/requirements/${requirementId}/tasks`, {
         method: 'POST',
         body: JSON.stringify({
           title,
-          taskType: 'IMPLEMENT',
+          taskType,
           priority: 'MEDIUM',
+          defectId,
         }),
       })
       await loadRequirementDetail(requirementId)

@@ -28,6 +28,7 @@ import com.forgepilot.project.domain.Project;
 import com.forgepilot.project.domain.ProjectRepository;
 import com.forgepilot.project.persistence.ProjectMapper;
 import com.forgepilot.project.persistence.ProjectRepositoryMapper;
+import com.forgepilot.project.lifecycle.RequirementLifecycleService;
 import com.forgepilot.project.service.ProjectAccess;
 import com.forgepilot.system.activity.ActivityLogRecorder;
 import com.forgepilot.system.auth.AuthUser;
@@ -49,6 +50,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -84,6 +86,7 @@ public class TaskSessionService {
     private final SessionLogStream sessionLogStream;
     private final OutboxService outboxService;
     private final GitCredentialPort gitCredentialPort;
+    private final RequirementLifecycleService lifecycleService;
     private final String storageRoot;
 
     public TaskSessionService(
@@ -107,6 +110,7 @@ public class TaskSessionService {
             SessionLogStream sessionLogStream,
             OutboxService outboxService,
             GitCredentialPort gitCredentialPort,
+            @Lazy RequirementLifecycleService lifecycleService,
             @Value("${forgepilot.workspace.storage-root:${java.io.tmpdir}/forgepilot-workspaces}") String storageRoot) {
         this.codingTaskMapper = codingTaskMapper;
         this.agentSessionMapper = agentSessionMapper;
@@ -128,6 +132,7 @@ public class TaskSessionService {
         this.sessionLogStream = sessionLogStream;
         this.outboxService = outboxService;
         this.gitCredentialPort = gitCredentialPort;
+        this.lifecycleService = lifecycleService;
         this.storageRoot = storageRoot;
     }
 
@@ -137,6 +142,7 @@ public class TaskSessionService {
         if (!List.of("PENDING", "PREPARING", "WAITING_USER").contains(task.getStatus())) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "当前任务状态不能启动 Session");
         }
+        lifecycleService.assertCanStart(task.getRequirementId(), task.getTaskType());
         ensureNoActiveSession(taskId);
         return launchNewSession(user, task, request == null ? null : request.note(), "USER_START");
     }
@@ -147,6 +153,7 @@ public class TaskSessionService {
         if (!List.of("WAITING_USER", "RUNNING").contains(task.getStatus())) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "当前状态不能重试");
         }
+        lifecycleService.assertCanStart(task.getRequirementId(), task.getTaskType());
         cancelActiveSessions(user, task, "重试前取消活动 Session");
         // 同一工作区：不删除 checkout
         return launchNewSession(user, task, request == null ? null : request.note(), "USER_RETRY");
@@ -288,6 +295,7 @@ public class TaskSessionService {
         task.setStatus("PREPARING");
         codingTaskMapper.updateById(task);
         recordHistory(task.getId(), fromStatus, "PREPARING", "准备 Session：" + reason, user.userId());
+        lifecycleService.onDevelopmentStarted(task);
 
         AgentSession session = new AgentSession();
         session.setId(UUID.randomUUID().toString());
@@ -382,6 +390,7 @@ public class TaskSessionService {
                     "WAITING_USER",
                     "Session 启动失败（" + runtime.errorCode() + "）：" + runtime.errorMessage(),
                     user.userId());
+            lifecycleService.syncAutomaticStatus(task.getRequirementId());
             // 绝不标 COMPLETED / 不假装编码成功
             sessionLogStream.append(session.getId(), runtime.errorMessage());
             return toResult(task, session, runtime.errorMessage(), List.of());
@@ -406,6 +415,7 @@ public class TaskSessionService {
         task.setStatus("RUNNING");
         codingTaskMapper.updateById(task);
         recordHistory(task.getId(), "PREPARING", "RUNNING", "Session 进入 RUNNING", user.userId());
+        lifecycleService.syncAutomaticStatus(task.getRequirementId());
         List<String> logs = agentRuntimePort.tailLogs(session.getId(), 100);
         for (String line : logs) {
             sessionLogStream.append(session.getId(), line);

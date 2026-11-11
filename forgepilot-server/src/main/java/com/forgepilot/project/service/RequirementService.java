@@ -1,13 +1,17 @@
 package com.forgepilot.project.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.forgepilot.execution.domain.CodingTask;
 import com.forgepilot.execution.persistence.CodingTaskMapper;
 import com.forgepilot.execution.service.TaskService;
-import com.forgepilot.execution.web.CreateTaskRequest;
 import com.forgepilot.project.domain.AnalysisDraft;
 import com.forgepilot.project.domain.Project;
 import com.forgepilot.project.domain.Requirement;
+import com.forgepilot.project.lifecycle.RequirementLifecycleService;
+import com.forgepilot.project.lifecycle.RequirementLifecycleService.LifecycleBundle;
+import com.forgepilot.project.lifecycle.RequirementStatusMachine;
 import com.forgepilot.project.persistence.AnalysisDraftMapper;
 import com.forgepilot.project.persistence.RequirementMapper;
 import com.forgepilot.project.web.ConfirmAnalysisRequest;
@@ -15,7 +19,6 @@ import com.forgepilot.project.web.CreateRequirementRequest;
 import com.forgepilot.system.activity.ActivityLogRecorder;
 import com.forgepilot.system.auth.AuthUser;
 import java.time.Instant;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -28,12 +31,15 @@ import org.springframework.web.server.ResponseStatusException;
 @Service
 public class RequirementService {
 
+    private static final ObjectMapper SUGGESTIONS = new ObjectMapper();
+
     private final RequirementMapper requirementMapper;
     private final AnalysisDraftMapper analysisDraftMapper;
     private final CodingTaskMapper codingTaskMapper;
     private final ProjectAccess projectAccess;
     private final ActivityLogRecorder activityLogRecorder;
     private final TaskService taskService;
+    private final RequirementLifecycleService lifecycleService;
 
     public RequirementService(
             RequirementMapper requirementMapper,
@@ -41,13 +47,15 @@ public class RequirementService {
             CodingTaskMapper codingTaskMapper,
             ProjectAccess projectAccess,
             ActivityLogRecorder activityLogRecorder,
-            @Lazy TaskService taskService) {
+            @Lazy TaskService taskService,
+            RequirementLifecycleService lifecycleService) {
         this.requirementMapper = requirementMapper;
         this.analysisDraftMapper = analysisDraftMapper;
         this.codingTaskMapper = codingTaskMapper;
         this.projectAccess = projectAccess;
         this.activityLogRecorder = activityLogRecorder;
         this.taskService = taskService;
+        this.lifecycleService = lifecycleService;
     }
 
     public List<RequirementView> listByProject(AuthUser user, String projectId) {
@@ -66,12 +74,15 @@ public class RequirementService {
         Project project = projectAccess.requireProjectInTenant(user, requirement.getProjectId());
         AnalysisDraft draft = latestDraft(requirementId);
         List<TaskService.TaskView> tasks = taskService.listByRequirement(user, requirementId);
+        LifecycleBundle lifecycle = lifecycleService.bundle(requirementId);
         return new RequirementDetailView(
                 toView(requirement, project.getName()),
                 draft == null ? "" : draft.getBody(),
                 draft != null && draft.getConfirmedAt() != null,
                 draft == null ? null : draft.getConfirmedBy(),
-                tasks);
+                readTitles(draft == null ? null : draft.getSuggestedTasks()),
+                tasks,
+                lifecycle);
     }
 
     @Transactional
@@ -101,6 +112,7 @@ public class RequirementService {
             draft.setId(UUID.randomUUID().toString());
             draft.setRequirementId(requirement.getId());
             draft.setBody(requirement.getDescription());
+            draft.setSuggestedTasks("[]");
             draft.setCreatedBy(user.userId());
             analysisDraftMapper.insert(draft);
         }
@@ -125,10 +137,14 @@ public class RequirementService {
     @Transactional
     public RequirementDetailView confirmAnalysis(AuthUser user, String requirementId, ConfirmAnalysisRequest request) {
         Requirement requirement = requireVisible(user, requirementId);
-        if (!"待分析".equals(requirement.getStatus()) && !"设计中".equals(requirement.getStatus())) {
+        if (!"待分析".equals(requirement.getStatus())) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "当前需求状态不允许确认分析草稿");
         }
         Project project = projectAccess.requireProjectMember(user, requirement.getProjectId());
+
+        List<String> titles = request.taskTitles() == null
+                ? List.of()
+                : request.taskTitles().stream().filter(t -> t != null && !t.isBlank()).map(String::trim).toList();
 
         AnalysisDraft draft = latestDraft(requirementId);
         if (draft == null) {
@@ -137,33 +153,22 @@ public class RequirementService {
             draft.setRequirementId(requirementId);
             draft.setCreatedBy(user.userId());
             draft.setBody(request.draft());
+            draft.setSuggestedTasks(writeTitles(titles));
             draft.setConfirmedBy(user.userId());
             draft.setConfirmedAt(Instant.now());
             analysisDraftMapper.insert(draft);
         } else {
             draft.setBody(request.draft());
+            draft.setSuggestedTasks(writeTitles(titles));
             draft.setConfirmedBy(user.userId());
             draft.setConfirmedAt(Instant.now());
             analysisDraftMapper.updateById(draft);
         }
 
         requirement.setDescription(request.draft());
-        requirement.setStatus("待开发");
+        requirement.setStatus(RequirementStatusMachine.afterConfirmAnalysis());
+        requirement.setStatusLocked(false);
         requirementMapper.updateById(requirement);
-
-        List<String> createdTaskIds = new ArrayList<>();
-        if (request.taskTitles() != null) {
-            for (String title : request.taskTitles()) {
-                if (title == null || title.isBlank()) {
-                    continue;
-                }
-                TaskService.TaskView created = taskService.create(
-                        user,
-                        requirementId,
-                        new CreateTaskRequest(title.trim(), null, "IMPLEMENT", "MEDIUM", user.userId(), null));
-                createdTaskIds.add(created.id());
-            }
-        }
 
         activityLogRecorder.record(
                 user.tenantId(),
@@ -176,8 +181,8 @@ public class RequirementService {
                 requirementId,
                 null,
                 null,
-                "确认分析与任务拆分：" + requirement.getTitle(),
-                Map.of("createdTaskIds", createdTaskIds, "taskCount", createdTaskIds.size()),
+                "确认分析并提交需求评审：" + requirement.getTitle(),
+                Map.of("suggestedTaskTitles", titles, "taskCount", titles.size()),
                 "SUCCESS");
 
         return get(user, requirementId);
@@ -210,8 +215,7 @@ public class RequirementService {
     private RequirementView toView(Requirement requirement, String projectName) {
         int[] progress = progress(requirement.getId());
         AnalysisDraft draft = latestDraft(requirement.getId());
-        boolean confirmed = (draft != null && draft.getConfirmedAt() != null)
-                || (!"待分析".equals(requirement.getStatus()) && !"设计中".equals(requirement.getStatus()));
+        boolean confirmed = draft != null && draft.getConfirmedAt() != null;
         return new RequirementView(
                 requirement.getId(),
                 requirement.getCode(),
@@ -245,6 +249,26 @@ public class RequirementService {
         return new int[] {done, total};
     }
 
+    private static List<String> readTitles(String json) {
+        if (json == null || json.isBlank()) {
+            return List.of();
+        }
+        try {
+            List<String> titles = SUGGESTIONS.readValue(json, new TypeReference<>() {});
+            return titles == null ? List.of() : titles;
+        } catch (Exception ex) {
+            return List.of();
+        }
+    }
+
+    private static String writeTitles(List<String> titles) {
+        try {
+            return SUGGESTIONS.writeValueAsString(titles == null ? List.of() : titles);
+        } catch (Exception ex) {
+            return "[]";
+        }
+    }
+
     private static String blankToNull(String value) {
         if (value == null) {
             return null;
@@ -266,14 +290,14 @@ public class RequirementService {
             String draft,
             boolean confirmed,
             int taskDone,
-            int taskTotal) {
-    }
+            int taskTotal) {}
 
     public record RequirementDetailView(
             RequirementView requirement,
             String draft,
             boolean confirmed,
             String confirmedBy,
-            List<TaskService.TaskView> tasks) {
-    }
+            List<String> suggestedTaskTitles,
+            List<TaskService.TaskView> tasks,
+            LifecycleBundle lifecycle) {}
 }

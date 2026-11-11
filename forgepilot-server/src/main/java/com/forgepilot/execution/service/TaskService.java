@@ -17,6 +17,7 @@ import com.forgepilot.project.domain.Requirement;
 import com.forgepilot.project.persistence.ProjectMapper;
 import com.forgepilot.project.persistence.ProjectRepositoryMapper;
 import com.forgepilot.project.persistence.RequirementMapper;
+import com.forgepilot.project.lifecycle.RequirementLifecycleService;
 import com.forgepilot.project.service.ProjectAccess;
 import com.forgepilot.system.activity.ActivityLogRecorder;
 import com.forgepilot.system.auth.AuthUser;
@@ -26,6 +27,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -48,6 +50,7 @@ public class TaskService {
     private final ProjectAccess projectAccess;
     private final ActivityLogRecorder activityLogRecorder;
     private final MergeRequestMapper mergeRequestMapper;
+    private final RequirementLifecycleService lifecycleService;
 
     public TaskService(
             CodingTaskMapper codingTaskMapper,
@@ -58,7 +61,8 @@ public class TaskService {
             ProjectMapper projectMapper,
             ProjectAccess projectAccess,
             ActivityLogRecorder activityLogRecorder,
-            MergeRequestMapper mergeRequestMapper) {
+            MergeRequestMapper mergeRequestMapper,
+            @Lazy RequirementLifecycleService lifecycleService) {
         this.codingTaskMapper = codingTaskMapper;
         this.taskRepositoryFreezeMapper = taskRepositoryFreezeMapper;
         this.taskStateHistoryMapper = taskStateHistoryMapper;
@@ -68,6 +72,7 @@ public class TaskService {
         this.projectAccess = projectAccess;
         this.activityLogRecorder = activityLogRecorder;
         this.mergeRequestMapper = mergeRequestMapper;
+        this.lifecycleService = lifecycleService;
     }
 
     public List<TaskView> listByRequirement(AuthUser user, String requirementId) {
@@ -103,8 +108,13 @@ public class TaskService {
         if ("ARCHIVED".equals(project.getStatus())) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "归档项目不能创建任务");
         }
-        if ("已取消".equals(requirement.getStatus()) || "已完成".equals(requirement.getStatus())) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "已完成或已取消的需求不能再拆任务");
+        if ("已取消".equals(requirement.getStatus())
+                || "已完成".equals(requirement.getStatus())
+                || "已发布".equals(requirement.getStatus())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "已完成、已取消或已发布的需求不能再拆任务");
+        }
+        if ("BUGFIX".equals(request.taskType())) {
+            lifecycleService.requireDefectForBugfix(requirementId, request.defectId());
         }
 
         List<ProjectRepository> repos = projectRepositoryMapper.selectList(new LambdaQueryWrapper<ProjectRepository>()
@@ -135,6 +145,7 @@ public class TaskService {
         task.setStatus("PENDING");
         task.setOwnerId(request.ownerId() == null || request.ownerId().isBlank() ? user.userId() : request.ownerId());
         task.setPredecessorTaskId(blankToNull(request.predecessorTaskId()));
+        task.setDefectId("BUGFIX".equals(request.taskType()) ? blankToNull(request.defectId()) : null);
         task.setCreatedBy(user.userId());
         codingTaskMapper.insert(task);
 
@@ -182,6 +193,7 @@ public class TaskService {
                                 .toList()),
                 "SUCCESS");
 
+        lifecycleService.syncAutomaticStatus(requirementId);
         return toView(task, project.getName(), frozenRepos(taskId));
     }
 
@@ -243,6 +255,13 @@ public class TaskService {
                         "toStatus", toStatus,
                         "note", request == null || request.note() == null ? "" : request.note()),
                 "SUCCESS");
+        if ("COMPLETED".equals(toStatus)) {
+            lifecycleService.onTaskCompleted(task);
+        } else if ("CANCELLED".equals(toStatus) || "FAILED".equals(toStatus)) {
+            lifecycleService.onTaskCancelledOrFailed(task);
+        } else {
+            lifecycleService.syncAutomaticStatus(task.getRequirementId());
+        }
         return get(user, task.getId());
     }
 
@@ -364,6 +383,7 @@ public class TaskService {
                 task.getCreatedBy(),
                 task.getOwnerId(),
                 task.getPredecessorTaskId(),
+                task.getDefectId(),
                 frozen.size());
     }
 
@@ -397,6 +417,7 @@ public class TaskService {
             String createdBy,
             String ownerId,
             String predecessorTaskId,
+            String defectId,
             int frozenRepoCount) {
     }
 

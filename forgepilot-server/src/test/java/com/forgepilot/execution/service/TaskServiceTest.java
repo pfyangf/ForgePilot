@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -25,6 +26,7 @@ import com.forgepilot.project.persistence.ProjectMapper;
 import com.forgepilot.project.persistence.ProjectMemberMapper;
 import com.forgepilot.project.persistence.ProjectRepositoryMapper;
 import com.forgepilot.project.persistence.RequirementMapper;
+import com.forgepilot.project.lifecycle.RequirementLifecycleService;
 import com.forgepilot.project.service.ProjectAccess;
 import com.forgepilot.system.activity.ActivityLogRecorder;
 import com.forgepilot.system.auth.AuthUser;
@@ -32,6 +34,7 @@ import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.springframework.http.HttpStatus;
 import org.springframework.web.server.ResponseStatusException;
 
 class TaskServiceTest {
@@ -50,6 +53,7 @@ class TaskServiceTest {
     private final ProjectMemberMapper projectMemberMapper = mock(ProjectMemberMapper.class);
     private final ActivityLogRecorder activityLogRecorder = mock(ActivityLogRecorder.class);
     private final MergeRequestMapper mergeRequestMapper = mock(MergeRequestMapper.class);
+    private final RequirementLifecycleService lifecycleService = mock(RequirementLifecycleService.class);
     private TaskService service;
 
     @BeforeEach
@@ -64,7 +68,8 @@ class TaskServiceTest {
                 projectMapper,
                 access,
                 activityLogRecorder,
-                mergeRequestMapper);
+                mergeRequestMapper,
+                lifecycleService);
         when(projectMemberMapper.findProjectIdsByUserId(USER)).thenReturn(List.of(PROJECT));
         when(requirementMapper.selectById(REQUIREMENT)).thenReturn(requirement());
         when(projectMapper.selectById(PROJECT)).thenReturn(project());
@@ -108,6 +113,17 @@ class TaskServiceTest {
                         user(), REQUIREMENT, new CreateTaskRequest("x", null, "IMPLEMENT", "MEDIUM", null, null)))
                 .isInstanceOf(ResponseStatusException.class)
                 .hasMessageContaining("尚未关联仓库");
+    }
+
+    @Test
+    void bugfixRequiresDefectId() {
+        doThrow(new ResponseStatusException(HttpStatus.BAD_REQUEST, "BUGFIX 任务必须关联缺陷"))
+                .when(lifecycleService)
+                .requireDefectForBugfix(REQUIREMENT, null);
+        assertThatThrownBy(() -> service.create(
+                        user(), REQUIREMENT, new CreateTaskRequest("修缺陷", null, "BUGFIX", "HIGH", USER, null, null)))
+                .isInstanceOf(ResponseStatusException.class)
+                .hasMessageContaining("必须关联缺陷");
     }
 
     @Test

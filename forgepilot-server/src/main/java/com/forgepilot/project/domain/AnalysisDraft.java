@@ -17,6 +17,7 @@ public class AnalysisDraft {
     private String requirementId;
     private String requirementVersionId;
     private String body;
+    private String suggestedTasks;
     private String confirmedBy;
     private Instant confirmedAt;
     private String createdBy;

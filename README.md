@@ -11,8 +11,9 @@ ForgePilot（云端 AI Coding 平台）以需求为入口，调度 AI Agent 在�
 产品、架构和后续设计文档都在 [`docs/`](docs/README.md)。除本文件和 [`AGENTS.md`](AGENTS.md) 外，不要在仓库根目录放置独立设计文档。
 
 - [文档索引与分类规则](docs/README.md)
-- [MVP 需求规格说明书 V1.2](docs/requirements/mvp-prd.md)
-- [系统基础架构设计说明书 V1.2](docs/architecture/system-architecture.md)
+- [MVP 需求规格说明书 V1.3](docs/requirements/mvp-prd.md)
+- [需求研发全流程（轻量）](docs/requirements/requirement-lifecycle.md)
+- [系统基础架构设计说明书 V1.3](docs/architecture/system-architecture.md)
 - [基础环境部署说明](docs/operations/basic-environment.md)
 
 ## 仓库结构

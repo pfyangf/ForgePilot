@@ -3,6 +3,11 @@ package com.forgepilot.project.web;
 import com.forgepilot.execution.service.TaskService;
 import com.forgepilot.execution.service.TaskService.TaskView;
 import com.forgepilot.execution.web.CreateTaskRequest;
+import com.forgepilot.project.lifecycle.RequirementLifecycleService;
+import com.forgepilot.project.lifecycle.RequirementLifecycleService.DefectView;
+import com.forgepilot.project.lifecycle.RequirementLifecycleService.DocumentView;
+import com.forgepilot.project.lifecycle.RequirementLifecycleService.RequirementViewStatus;
+import com.forgepilot.project.lifecycle.RequirementLifecycleService.ReviewView;
 import com.forgepilot.project.service.RequirementService;
 import com.forgepilot.project.service.RequirementService.RequirementDetailView;
 import com.forgepilot.system.security.AuthContext;
@@ -11,6 +16,7 @@ import java.util.List;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -21,10 +27,15 @@ public class RequirementController {
 
     private final RequirementService requirementService;
     private final TaskService taskService;
+    private final RequirementLifecycleService lifecycleService;
 
-    public RequirementController(RequirementService requirementService, TaskService taskService) {
+    public RequirementController(
+            RequirementService requirementService,
+            TaskService taskService,
+            RequirementLifecycleService lifecycleService) {
         this.requirementService = requirementService;
         this.taskService = taskService;
+        this.lifecycleService = lifecycleService;
     }
 
     @GetMapping("/{requirementId}")
@@ -46,5 +57,80 @@ public class RequirementController {
     @PostMapping("/{requirementId}/tasks")
     public TaskView createTask(@PathVariable String requirementId, @Valid @RequestBody CreateTaskRequest request) {
         return taskService.create(AuthContext.require(), requirementId, request);
+    }
+
+    @PostMapping("/{requirementId}/reviews")
+    public ReviewView reviewRequirement(
+            @PathVariable String requirementId, @Valid @RequestBody ReviewDecisionRequest request) {
+        return lifecycleService.reviewRequirement(AuthContext.require(), requirementId, request);
+    }
+
+    @GetMapping("/{requirementId}/documents")
+    public List<DocumentView> documents(@PathVariable String requirementId) {
+        requirementService.requireVisible(AuthContext.require(), requirementId);
+        return lifecycleService.bundle(requirementId).documents();
+    }
+
+    @PostMapping("/{requirementId}/documents")
+    public DocumentView saveDocument(
+            @PathVariable String requirementId, @Valid @RequestBody SaveDocumentRequest request) {
+        return lifecycleService.saveDesignDocument(AuthContext.require(), requirementId, request);
+    }
+
+    @PutMapping("/{requirementId}/documents/{documentId}")
+    public DocumentView updateDocument(
+            @PathVariable String requirementId,
+            @PathVariable String documentId,
+            @Valid @RequestBody SaveDocumentRequest request) {
+        return lifecycleService.saveDesignDocument(AuthContext.require(), requirementId, request);
+    }
+
+    @PostMapping("/{requirementId}/documents/import")
+    public DocumentView importDocument(
+            @PathVariable String requirementId, @Valid @RequestBody SaveDocumentRequest request) {
+        return lifecycleService.saveDesignDocument(AuthContext.require(), requirementId, request);
+    }
+
+    @PostMapping("/{requirementId}/documents/{documentId}/submit-review")
+    public DocumentView submitDesignReview(@PathVariable String requirementId, @PathVariable String documentId) {
+        return lifecycleService.submitDesignReview(AuthContext.require(), requirementId);
+    }
+
+    @PostMapping("/{requirementId}/design-reviews")
+    public ReviewView reviewDesign(
+            @PathVariable String requirementId, @Valid @RequestBody ReviewDecisionRequest request) {
+        return lifecycleService.reviewDesignDocument(AuthContext.require(), requirementId, request);
+    }
+
+    @PostMapping("/{requirementId}/documents/{documentId}/reviews")
+    public ReviewView reviewDesignDocument(
+            @PathVariable String requirementId,
+            @PathVariable String documentId,
+            @Valid @RequestBody ReviewDecisionRequest request) {
+        return lifecycleService.reviewDesignDocument(AuthContext.require(), requirementId, request);
+    }
+
+    @PostMapping("/{requirementId}/status")
+    public RequirementViewStatus updateStatus(
+            @PathVariable String requirementId, @Valid @RequestBody UpdateRequirementStatusRequest request) {
+        return lifecycleService.updateStatus(AuthContext.require(), requirementId, request);
+    }
+
+    @PostMapping("/{requirementId}/accept")
+    public RequirementViewStatus accept(
+            @PathVariable String requirementId, @Valid @RequestBody AcceptRequirementRequest request) {
+        return lifecycleService.accept(AuthContext.require(), requirementId, request);
+    }
+
+    @GetMapping("/{requirementId}/defects")
+    public List<DefectView> defects(@PathVariable String requirementId) {
+        requirementService.requireVisible(AuthContext.require(), requirementId);
+        return lifecycleService.bundle(requirementId).defects();
+    }
+
+    @PostMapping("/{requirementId}/defects")
+    public DefectView createDefect(
+            @PathVariable String requirementId, @Valid @RequestBody CreateDefectRequest request) {
+        return lifecycleService.createDefect(AuthContext.require(), requirementId, request);
     }
 }

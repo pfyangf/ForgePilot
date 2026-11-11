@@ -16,8 +16,9 @@ ForgePilot（云端 AI Coding 平台）按公司租户隔离数据。用户创�
 
 目录地图：
 
-- `docs/requirements/mvp-prd.md`：MVP 需求基线 V1.2。
-- `docs/architecture/system-architecture.md`：架构基线 V1.2，含 ADR。
+- `docs/requirements/mvp-prd.md`：MVP 需求基线 V1.3。
+- `docs/requirements/requirement-lifecycle.md`：轻量需求研发生命周期（评审、设计稿、缺陷、验收、发布）。
+- `docs/architecture/system-architecture.md`：架构基线 V1.3，含 ADR。
 - `docs/operations/basic-environment.md`：小规格云主机上的基础环境部署说明。
 - `docs/frontend/ui-style.md`：工作台样式规范。
 
@@ -69,7 +70,7 @@ MVP 要包含：
 
 不要放进 MVP：
 
-- 缺陷管理、API 文档管理、项目 Markdown 文档库、OpenAPI 导入或自动生成。
+- 外部缺陷系统、独立缺陷产品模块、API 文档管理、通用项目 Markdown 文档库、OpenAPI 导入或自动生成。需求上的轻量缺陷单和设计稿已经在 V1.3。
 - Monaco Editor、xterm.js、在线终端、云 IDE、交互式 PTY。
 - 把人工接管做成 IDE 会话，或在 Agent 未声明能力时假装进程已冻结可恢复。
 - 六角色、五维权限编辑器、五种正式审批流。
@@ -229,4 +230,4 @@ Agent Execution Service 是独立进程，负责镜像与克隆、容器、Agent
 
 ## 本文件与详细文档
 
-实现时同时遵守本文件和 `docs/` 中的 V1.2 基线。本文件是绑定检查清单；行为细节、状态迁移、数据实体和验收标准以 `docs/requirements/mvp-prd.md` 与 `docs/architecture/system-architecture.md` 为准。发现二者冲突时，先改文档使之一致，再写代码。
+实现时同时遵守本文件和 `docs/` 中的 V1.3 基线。本文件是绑定检查清单；行为细节、状态迁移、数据实体和验收标准以 `docs/requirements/mvp-prd.md`、`docs/requirements/requirement-lifecycle.md` 与 `docs/architecture/system-architecture.md` 为准。发现冲突时，先改文档使之一致，再写代码。

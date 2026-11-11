@@ -14,5 +14,16 @@ public record CreateTaskRequest(
                 String taskType,
         @Pattern(regexp = "HIGH|MEDIUM|LOW", message = "优先级必须是 HIGH、MEDIUM 或 LOW") String priority,
         String ownerId,
-        String predecessorTaskId) {
+        String predecessorTaskId,
+        String defectId) {
+
+    public CreateTaskRequest(
+            String title,
+            String description,
+            String taskType,
+            String priority,
+            String ownerId,
+            String predecessorTaskId) {
+        this(title, description, taskType, priority, ownerId, predecessorTaskId, null);
+    }
 }

@@ -29,6 +29,7 @@ import com.forgepilot.project.domain.Project;
 import com.forgepilot.project.domain.ProjectRepository;
 import com.forgepilot.project.persistence.ProjectMapper;
 import com.forgepilot.project.persistence.ProjectRepositoryMapper;
+import com.forgepilot.project.lifecycle.RequirementLifecycleService;
 import com.forgepilot.project.service.ProjectAccess;
 import com.forgepilot.system.activity.ActivityLogRecorder;
 import com.forgepilot.system.outbox.OutboxService;
@@ -42,6 +43,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -73,6 +75,7 @@ public class TaskVerifyDeliveryService {
     private final ActivityLogRecorder activityLogRecorder;
     private final GitCredentialPort gitCredentialPort;
     private final OutboxService outboxService;
+    private final RequirementLifecycleService lifecycleService;
     private final String storageRoot;
 
     public TaskVerifyDeliveryService(
@@ -94,6 +97,7 @@ public class TaskVerifyDeliveryService {
             ActivityLogRecorder activityLogRecorder,
             GitCredentialPort gitCredentialPort,
             OutboxService outboxService,
+            @Lazy RequirementLifecycleService lifecycleService,
             @Value("${forgepilot.workspace.storage-root:${java.io.tmpdir}/forgepilot-workspaces}") String storageRoot) {
         this.codingTaskMapper = codingTaskMapper;
         this.freezeMapper = freezeMapper;
@@ -113,6 +117,7 @@ public class TaskVerifyDeliveryService {
         this.activityLogRecorder = activityLogRecorder;
         this.gitCredentialPort = gitCredentialPort;
         this.outboxService = outboxService;
+        this.lifecycleService = lifecycleService;
         this.storageRoot = storageRoot;
     }
 
@@ -136,6 +141,7 @@ public class TaskVerifyDeliveryService {
         String from = task.getStatus();
         task.setStatus("VERIFYING");
         codingTaskMapper.updateById(task);
+        lifecycleService.syncAutomaticStatus(task.getRequirementId());
         recordHistory(taskId, from, "VERIFYING", "开始平台验证", user.userId());
 
         PreparedWorkspace workspace = workspaceCheckout.prepare(storageRoot, taskId, frozen, this::askPassFor);
@@ -210,6 +216,7 @@ public class TaskVerifyDeliveryService {
             String to = "WAITING_USER";
             task.setStatus(to);
             codingTaskMapper.updateById(task);
+            lifecycleService.syncAutomaticStatus(task.getRequirementId());
             String reason = attempt >= feedbackLimit
                     ? "验证回灌次数已用尽，进入 WAITING_USER（非 FAILED）"
                     : "验证未通过，可再次调用 verify 重试（尚未接 Codex 回灌）";
@@ -444,6 +451,7 @@ public class TaskVerifyDeliveryService {
         String from = task.getStatus();
         task.setStatus(toStatus);
         codingTaskMapper.updateById(task);
+        lifecycleService.syncAutomaticStatus(task.getRequirementId());
         recordHistory(task.getId(), from, toStatus, message, user.userId());
         activityLogRecorder.record(
                 user.tenantId(),

@@ -44,6 +44,21 @@ class CoreSchemaMigrationTest {
         assertThat(task).doesNotContain("repository_id");
     }
 
+    @Test
+    void lifecycleMigrationAddsReviewDocumentDefectAndRelease() throws IOException {
+        String sql = new String(
+                new ClassPathResource("db/migration/V10__requirement_lifecycle.sql").getContentAsByteArray(),
+                StandardCharsets.UTF_8);
+        assertThat(sql).contains("create table review");
+        assertThat(sql).contains("create table requirement_document");
+        assertThat(sql).contains("create table defect");
+        assertThat(sql).contains("create table requirement_release");
+        assertThat(sql).contains("'待需求评审'");
+        assertThat(sql).contains("'待设计评审'");
+        assertThat(sql).contains("'已发布'");
+        assertThat(sql).contains("alter table task add column defect_id");
+    }
+
     private static String table(String sql, String name, String next) {
         String start = "create table " + name + " (";
         int from = sql.indexOf(start);

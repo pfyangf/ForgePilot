@@ -5,6 +5,8 @@ import com.forgepilot.project.service.ProjectService.ProjectDetailView;
 import com.forgepilot.project.service.ProjectService.ProjectView;
 import com.forgepilot.project.service.ProjectService.RepositoryView;
 import com.forgepilot.project.service.ProjectService.UpdateDefaultsRequest;
+import com.forgepilot.project.lifecycle.RequirementLifecycleService;
+import com.forgepilot.project.lifecycle.RequirementLifecycleService.ReleaseView;
 import com.forgepilot.project.service.RequirementService;
 import com.forgepilot.project.service.RequirementService.RequirementView;
 import com.forgepilot.system.security.AuthContext;
@@ -24,10 +26,15 @@ public class ProjectController {
 
     private final ProjectService projectService;
     private final RequirementService requirementService;
+    private final RequirementLifecycleService lifecycleService;
 
-    public ProjectController(ProjectService projectService, RequirementService requirementService) {
+    public ProjectController(
+            ProjectService projectService,
+            RequirementService requirementService,
+            RequirementLifecycleService lifecycleService) {
         this.projectService = projectService;
         this.requirementService = requirementService;
+        this.lifecycleService = lifecycleService;
     }
 
     @GetMapping
@@ -72,5 +79,16 @@ public class ProjectController {
     public RequirementView createRequirement(
             @PathVariable String projectId, @Valid @RequestBody CreateRequirementRequest request) {
         return requirementService.create(AuthContext.require(), projectId, request);
+    }
+
+    @GetMapping("/{projectId}/releases")
+    public List<ReleaseView> releases(@PathVariable String projectId) {
+        return lifecycleService.listReleases(AuthContext.require(), projectId);
+    }
+
+    @PostMapping("/{projectId}/releases")
+    public ReleaseView createRelease(
+            @PathVariable String projectId, @Valid @RequestBody CreateReleaseRequest request) {
+        return lifecycleService.createRelease(AuthContext.require(), projectId, request);
     }
 }

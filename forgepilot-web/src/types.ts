@@ -1,4 +1,4 @@
-export type RequirementStatus = '待分析' | '设计中' | '待开发' | '开发中' | '测试中' | '待验收' | '已完成' | '已取消'
+export type RequirementStatus = '待分析' | '待需求评审' | '设计中' | '待设计评审' | '待开发' | '开发中' | '测试中' | '待验收' | '已完成' | '已取消' | '已发布'
 
 export type TaskStatus =
   | 'PENDING'
@@ -31,6 +31,9 @@ export interface WorkRequirement {
   confirmed: boolean
   taskDone?: number
   taskTotal?: number
+  suggestedTaskTitles?: string[]
+  taskType?: string
+  defectId?: string
 }
 
 export interface CheckoutInfo {
@@ -48,6 +51,8 @@ export interface WorkTask {
   id: string
   requirementId: string
   title: string
+  taskType?: string
+  defectId?: string | null
   status: TaskStatus | string
   sessionStatus: SessionStatus | null
   sessionId?: string | null
