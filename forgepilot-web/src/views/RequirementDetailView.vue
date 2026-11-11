@@ -9,48 +9,109 @@
       <span v-if="detail.requirement.code" class="fp-code-chip">{{ detail.requirement.code }}</span>
     </div>
     <el-alert v-if="error" class="block" type="error" show-icon :closable="false" :title="error" />
-    <div class="page-header">
-      <div class="page-header__titles">
-        <div class="fp-title-row">
-          <h1 class="page-header__title">{{ detail.requirement.title }}</h1>
-          <span v-if="detail.requirement.code" class="fp-code-chip">{{ detail.requirement.code }}</span>
-          <span class="fp-status-tag" :class="statusToneClass(detail.requirement.status)">{{ detail.requirement.status }}</span>
+    <header class="fp-issue">
+      <div class="fp-issue__row">
+        <div>
+          <span v-if="detail.requirement.code" class="fp-code-chip fp-code-chip--req fp-code-chip--lg">{{ detail.requirement.code }}</span>
+          <span class="fp-status-tag" :class="statusToneClass(detail.requirement.status)" style="margin-left: 8px">{{ detail.requirement.status }}</span>
+          <h1 class="fp-issue__title">{{ detail.requirement.title }}</h1>
+          <div class="fp-issue__meta">
+            <span>{{ detail.requirement.projectName }}</span>
+            <span class="dot"></span>
+            <span>任务 {{ detail.requirement.taskDone }}/{{ detail.requirement.taskTotal }}</span>
+            <template v-if="workingBranchName">
+              <span class="dot"></span>
+              <span>工作分支</span>
+              <BranchPill :name="workingBranchName" />
+            </template>
+            <template v-if="releaseTargetSummary">
+              <span class="dot"></span>
+              <span>将合并到</span>
+              <BranchPill :name="releaseTargetSummary" />
+            </template>
+          </div>
         </div>
-        <div class="fp-meta-row">
-          <span>{{ detail.requirement.projectName }}</span>
-          <span>任务 {{ detail.requirement.taskDone }}/{{ detail.requirement.taskTotal }}</span>
-          <span>当前环节 {{ gates.currentStage }}</span>
+        <div class="page-header__actions">
           <el-select v-model="manualStatus" size="small" style="width: 140px" @change="changeStatus">
             <el-option v-for="item in editableStatuses" :key="item" :label="item" :value="item" />
           </el-select>
+          <el-button v-if="stageAdvice.secondary.length" :loading="generating" @click="stageAdvice.secondary[0].run()">
+            {{ stageAdvice.secondary[0].label }}
+          </el-button>
+          <el-button
+            v-if="stageAdvice.primary"
+            :type="stageAdvice.primary.type || 'primary'"
+            :loading="saving"
+            @click="stageAdvice.primary.run()"
+          >
+            {{ stageAdvice.primary.label }}
+          </el-button>
         </div>
       </div>
-    </div>
+    </header>
+
+    <FlowBoard
+      :current-stage="gates.currentStage"
+      :current-stage-index="gates.currentStageIndex"
+      :title="boardTitle"
+      :show-loop="showLoop"
+      :loop-caption="loopCaption"
+      @select="onSelectNode"
+    />
 
     <el-card class="block" shadow="never">
       <template #header>
         <div class="row-between">
-          <span>研发流程</span>
-          <span class="hint" style="margin: 0">已完成环节可点击查看或修改。当前停在 {{ gates.currentStage }}。</span>
+          <span>当前环节：{{ gates.currentStage }}</span>
+          <span class="hint" style="margin: 0">平台建议下一步，已完成节点也可点开回看或修改。</span>
         </div>
       </template>
-      <div v-for="group in flowGroups" :key="group.name" class="fp-flow-group">
-        <div class="fp-flow-group__label">{{ group.name }}</div>
-        <button
-          v-for="stage in group.stages"
-          :key="stage"
-          type="button"
-          class="fp-flow-chip"
-          :class="flowChipClass(stage)"
-          :disabled="!isStageReached(stage)"
-          @click="focusStage(stage)"
-        >
-          {{ stage }}
-        </button>
+      <div class="fp-stage-panel">
+        <p class="fp-stage-lead">{{ stageAdvice.hint }}</p>
+        <div class="fp-stage-actions">
+          <el-button
+            v-for="action in stageAdvice.secondary"
+            :key="action.label"
+            :loading="generating && action.ai"
+            @click="action.run()"
+          >
+            {{ action.label }}
+          </el-button>
+          <el-button
+            v-if="stageAdvice.danger"
+            type="danger"
+            :loading="saving"
+            @click="stageAdvice.danger.run()"
+          >
+            {{ stageAdvice.danger.label }}
+          </el-button>
+          <el-button
+            v-if="stageAdvice.primary"
+            :type="stageAdvice.primary.type || 'primary'"
+            :loading="saving"
+            @click="stageAdvice.primary.run()"
+          >
+            {{ stageAdvice.primary.label }}
+          </el-button>
+        </div>
       </div>
     </el-card>
 
-    <el-card class="block">
+    <nav class="fp-tabs" aria-label="需求页签">
+      <button type="button" :class="{ 'is-active': activeTab === 'flow' }" @click="activeTab = 'flow'">流程</button>
+      <button type="button" :class="{ 'is-active': activeTab === 'tasks' }" @click="activeTab = 'tasks'">
+        任务 <span class="count">{{ detail.tasks.length }}</span>
+      </button>
+      <button type="button" :class="{ 'is-active': activeTab === 'docs' }" @click="activeTab = 'docs'">
+        文档 <span class="count">{{ detail.lifecycle.documents.length }}</span>
+      </button>
+      <button type="button" :class="{ 'is-active': activeTab === 'defects' }" @click="activeTab = 'defects'">
+        缺陷 <span class="count">{{ detail.lifecycle.defects.length }}</span>
+      </button>
+      <button type="button" :class="{ 'is-active': activeTab === 'activity' }" @click="activeTab = 'activity'">活动</button>
+    </nav>
+
+    <el-card v-show="activeTab === 'flow'" class="block">
       <template #header>绑定检查（启动开发/修复任务前必须满足）</template>
       <el-descriptions :column="2" border>
         <el-descriptions-item label="需求评审">{{ yesNo(gates.requirementReviewApproved) }}</el-descriptions-item>
@@ -69,7 +130,7 @@
       <p v-else class="hint">开工门禁已满足。TEST / DOCS / REVIEW 任务不受此门禁限制。</p>
     </el-card>
 
-    <el-card v-if="status === '待分析'" id="stage-需求分析" class="block">
+    <el-card v-if="status === '待分析'" v-show="activeTab === 'flow'" id="stage-需求分析" class="block">
       <template #header>
         <div class="row-between">
           <span>分析草稿与任务拆分建议</span>
@@ -95,7 +156,7 @@
       </div>
     </el-card>
 
-    <el-card v-if="status === '待需求评审'" id="stage-需求评审" class="block">
+    <el-card v-if="status === '待需求评审'" v-show="activeTab === 'flow'" id="stage-需求评审" class="block">
       <template #header>
         <div class="row-between">
           <span>需求评审</span>
@@ -116,7 +177,7 @@
       </el-table>
     </el-card>
 
-    <el-card v-if="status === '设计中' || status === '待设计评审' || showDesignReadonly" id="stage-设计文档" class="block">
+    <el-card v-if="status === '设计中' || status === '待设计评审' || showDesignReadonly" v-show="activeTab === 'docs' || (activeTab === 'flow' && (status === '设计中' || status === '待设计评审'))" id="stage-设计文档" class="block">
       <template #header>
         <div class="row-between">
           <span>设计文档</span>
@@ -145,7 +206,7 @@
       <p v-if="currentDocument" class="hint">当前版本 v{{ currentDocument.versionNo }}{{ currentDocument.pendingReview ? '（待审）' : '' }}</p>
     </el-card>
 
-    <el-card v-if="status === '待设计评审'" id="stage-设计文档评审" class="block">
+    <el-card v-if="status === '待设计评审'" v-show="activeTab === 'docs' || activeTab === 'flow'" id="stage-设计文档评审" class="block">
       <template #header>
         <div class="row-between">
           <span>设计文档评审</span>
@@ -165,7 +226,7 @@
       </el-table>
     </el-card>
 
-    <el-card id="stage-actions" class="block" shadow="never">
+    <el-card v-show="activeTab === 'flow'" id="stage-actions" class="block" shadow="never">
       <template #header>各环节动作</template>
       <p class="hint">每个节点都可以按场景使用 AI 生成、配置或修改。已完成环节可查看或再改。</p>
       <div class="fp-node-grid">
@@ -180,7 +241,7 @@
       </div>
     </el-card>
 
-    <el-card v-if="showTasks" id="stage-开发" class="block">
+    <el-card v-if="showTasks" v-show="activeTab === 'tasks'" id="stage-开发" class="block">
       <template #header>
         <div class="row-between">
           <span>需求下的任务</span>
@@ -223,7 +284,7 @@
       </el-table>
     </el-card>
 
-    <el-card v-if="showDefects" id="stage-缺陷登记" class="block">
+    <el-card v-if="showDefects" v-show="activeTab === 'defects' || (activeTab === 'flow' && ['测试中'].includes(status))" id="stage-缺陷登记" class="block">
       <template #header>
         <div class="row-between">
           <span>缺陷</span>
@@ -256,7 +317,7 @@
       </el-table>
     </el-card>
 
-    <el-card v-if="status === '待验收'" id="stage-验收测试" class="block">
+    <el-card v-if="status === '待验收'" v-show="activeTab === 'flow'" id="stage-验收测试" class="block">
       <template #header>
         <div class="row-between">
           <span>验收测试</span>
@@ -271,7 +332,7 @@
       </div>
     </el-card>
 
-    <el-card v-if="status === '已完成' || status === '已发布'" id="stage-发布" class="block">
+    <el-card v-if="status === '已完成' || status === '已发布'" v-show="activeTab === 'flow'" id="stage-发布" class="block">
       <template #header>
         <div class="row-between">
           <span>发布</span>
@@ -319,6 +380,18 @@
         </el-table-column>
         <el-table-column prop="releasedAt" label="时间" width="220" />
       </el-table>
+    </el-card>
+
+
+    <el-card v-show="activeTab === 'activity'" class="block" shadow="never">
+      <template #header>活动</template>
+      <el-timeline v-if="activityItems.length">
+        <el-timeline-item v-for="item in activityItems" :key="item.id" :timestamp="item.at" placement="top">
+          <strong>{{ item.title }}</strong>
+          <p class="hint" style="margin: 4px 0 0">{{ item.detail || '无补充说明' }}</p>
+        </el-timeline-item>
+      </el-timeline>
+      <el-empty v-else description="还没有评审或发布记录" :image-size="80" />
     </el-card>
 
     <el-dialog v-model="showCreate" title="新建任务" width="520px">
@@ -403,7 +476,16 @@ import { ElMessage } from 'element-plus'
 import DOMPurify from 'dompurify'
 import { marked } from 'marked'
 import { apiFetch } from '@/api/http'
+import BranchPill from '@/components/BranchPill.vue'
+import FlowBoard from '@/components/FlowBoard.vue'
 import { statusTone, taskStatusLabel } from '@/domain/labels'
+import {
+  defectLoopCaption,
+  flowBoardTitle,
+  shouldShowDefectLoop,
+  stageAnchorId,
+  stageDef,
+} from '@/domain/pipeline'
 
 marked.setOptions({ gfm: true, breaks: true })
 
@@ -551,13 +633,7 @@ const releasePlan = ref<{ repositories: ReleaseRepoPlan[] }>({ repositories: [] 
 const releaseTargets = ref<Record<string, string>>({})
 const releasePlanError = ref('')
 const testPoints = ref('')
-
-const flowGroups = [
-  { name: '需求准备', stages: ['提出需求', '需求分析', '需求评审'] },
-  { name: '设计与绑定', stages: ['设计文档', '设计文档评审', 'AI Coding 绑定', '仓库绑定'] },
-  { name: '研发执行', stages: ['开发', '代码评审', '测试'] },
-  { name: '缺陷与交付', stages: ['缺陷登记', '缺陷修改', '回归测试', '验收测试', '发布'] },
-]
+const activeTab = ref<'flow' | 'tasks' | 'docs' | 'defects' | 'activity'>('flow')
 
 const status = computed(() => detail.value?.requirement.status || '')
 const gates = computed<GateRow>(
@@ -586,6 +662,114 @@ const openDefects = computed(() =>
   (detail.value?.lifecycle.defects || []).filter((item) => !['CLOSED', 'REJECTED'].includes(item.status)),
 )
 const designPreview = computed(() => DOMPurify.sanitize(marked.parse(designBody.value || currentDocument.value?.body || '') as string))
+const showLoop = computed(() => shouldShowDefectLoop(gates.value.currentStage, detail.value?.lifecycle.defects))
+const loopCaption = computed(() => defectLoopCaption(gates.value.currentStage, detail.value?.lifecycle.defects))
+const boardTitle = computed(() => flowBoardTitle(gates.value.currentStage, status.value))
+const workingBranchName = computed(() => {
+  const task = (detail.value?.tasks || []).find((item) => item.branchName)
+  return task?.branchName || ''
+})
+const releaseTargetSummary = computed(() => {
+  const names = Object.values(releaseTargets.value).filter(Boolean)
+  return names.length ? Array.from(new Set(names)).join(' / ') : ''
+})
+const activityItems = computed(() => {
+  const items: Array<{ id: string; at: string; title: string; detail: string }> = []
+  for (const row of detail.value?.lifecycle.requirementReviews || []) {
+    items.push({ id: `req-${row.id}`, at: row.createdAt, title: `需求评审 ${row.decision}`, detail: row.comment })
+  }
+  for (const row of detail.value?.lifecycle.designReviews || []) {
+    items.push({ id: `design-${row.id}`, at: row.createdAt, title: `设计评审 ${row.decision}`, detail: row.comment })
+  }
+  for (const row of detail.value?.lifecycle.releases || []) {
+    items.push({ id: `rel-${row.id}`, at: row.releasedAt, title: `发布 ${row.version}`, detail: row.notes })
+  }
+  return items.sort((a, b) => (a.at < b.at ? 1 : -1))
+})
+
+type StageAction = { label: string; run: () => void; type?: 'primary' | 'warning' | 'success' | 'danger'; ai?: boolean }
+
+const stageAdvice = computed(() => {
+  const hintBase = '平台会托管推进研发流程，只在需要你确认的节点停下来。'
+  const secondary: StageAction[] = []
+  let primary: StageAction | null = null
+  let danger: StageAction | null = null
+  let hint = hintBase
+  switch (status.value) {
+    case '待分析':
+      hint = '先确认分析草稿和任务建议，再提交需求评审。确认后不会立刻创建任务。'
+      secondary.push({ label: 'AI 生成分析草稿', ai: true, run: () => { activeTab.value = 'flow'; void generateDraft('REQUIREMENT_ANALYSIS', 'draft'); focusStage('需求分析') } })
+      primary = { label: '确认分析并提交评审', run: () => { activeTab.value = 'flow'; void confirmAnalysis() } }
+      break
+    case '待需求评审':
+      hint = '以本轮结论为准。通过后进入设计；驳回后回到待分析。'
+      secondary.push({ label: 'AI 生成评审意见', ai: true, run: () => { activeTab.value = 'flow'; void generateDraft('REQUIREMENT_REVIEW', 'reviewComment'); focusStage('需求评审') } })
+      danger = { label: '驳回', run: () => void reviewRequirement('REJECTED') }
+      primary = { label: '评审通过', run: () => void reviewRequirement('APPROVED') }
+      break
+    case '设计中':
+      hint = '写好或导入设计文档后提交评审。已完成节点也可回来修改。'
+      secondary.push({ label: 'AI 改写', ai: true, run: () => { activeTab.value = 'docs'; void generateDraft('DESIGN_REWRITE', 'designBody'); focusStage('设计文档') } })
+      primary = { label: '提交设计评审', type: 'success', run: () => { activeTab.value = 'docs'; void submitDesignReview() } }
+      break
+    case '待设计评审':
+      hint = '通过后进入待开发；驳回后回到设计中。'
+      secondary.push({ label: 'AI 生成评审意见', ai: true, run: () => { activeTab.value = 'docs'; void generateDraft('DESIGN_REVIEW', 'designReviewComment'); focusStage('设计文档评审') } })
+      danger = { label: '驳回', run: () => void reviewDesign('REJECTED') }
+      primary = { label: '评审通过', run: () => void reviewDesign('APPROVED') }
+      break
+    case '待开发':
+      if (gates.value.blockers.length) {
+        hint = `开工前还差：${gates.value.blockers.join('；')}。绑定好工具、模型和仓库后即可启动编码。`
+        primary = { label: '去项目里绑定', run: () => { if (detail.value?.requirement.projectId) router.push(`/projects/${detail.value.requirement.projectId}`) } }
+      } else {
+        hint = '开工门禁已满足。创建任务后平台会冻结仓库并按需求号给出工作分支。'
+        primary = { label: '新建任务', run: () => { activeTab.value = 'tasks'; openCreateTask() } }
+      }
+      break
+    case '开发中': {
+      const pending = detail.value?.tasks.find((item) => item.status === 'WAITING_APPROVAL')
+      if (pending) {
+        hint = '有任务正在等待代码评审。审核通过不会自动合并。'
+        primary = { label: '去评审', type: 'warning', run: () => openTask(pending) }
+      } else {
+        hint = '开发进行中。平台托管执行，完成后会停在评审或测试节点。'
+        const first = detail.value?.tasks[0]
+        primary = first
+          ? { label: '打开任务', run: () => openTask(first) }
+          : { label: '新建任务', run: () => { activeTab.value = 'tasks'; openCreateTask() } }
+      }
+      break
+    }
+    case '测试中': {
+      const fixed = (detail.value?.lifecycle.defects || []).find((item) => item.status === 'FIXED')
+      hint = fixed ? '缺陷已修复，请确认回归通过。' : '测试中如发现问题，可登记缺陷并开修复任务。'
+      secondary.push({ label: '登记缺陷', run: () => { activeTab.value = 'defects'; showDefectDialog.value = true } })
+      primary = fixed
+        ? { label: '回归通过', run: () => { activeTab.value = 'defects'; void defectAction(fixed.id, 'verify') } }
+        : { label: '查看缺陷', run: () => { activeTab.value = 'defects'; focusStage('缺陷登记') } }
+      break
+    }
+    case '待验收':
+      hint = '有未关闭的缺陷时不能验收通过。可先生成验收清单，确认后再通过。'
+      secondary.push({ label: 'AI 生成验收意见', ai: true, run: () => { activeTab.value = 'flow'; void generateDraft('ACCEPTANCE', 'acceptComment'); focusStage('验收测试') } })
+      danger = { label: '退回', run: () => void accept(false) }
+      primary = { label: '验收通过', run: () => void accept(true) }
+      break
+    case '已完成':
+      hint = '验收通过后才能发布。发布时选择要把工作分支合并进去的目标分支。'
+      secondary.push({ label: 'AI 生成发布说明', ai: true, run: () => { activeTab.value = 'flow'; void generateDraft('RELEASE_NOTES', 'releaseNotes'); focusStage('发布') } })
+      primary = { label: '确认发布并合并', run: () => { activeTab.value = 'flow'; focusStage('发布') } }
+      break
+    case '已发布':
+      hint = '这条需求已经发布。可回看流水线和发布记录。'
+      primary = { label: '查看发布记录', run: () => { activeTab.value = 'flow'; focusStage('发布') } }
+      break
+    default:
+      hint = hintBase
+  }
+  return { hint, primary, secondary, danger }
+})
 
 const nodeActions = computed(() => [
   { stage: '提出需求', actions: [{ label: '查看', type: 'focus', stage: '提出需求' }] },
@@ -610,19 +794,22 @@ function statusToneClass(value: string) {
   return tone ? `is-${tone}` : ''
 }
 
-function isStageReached(stage: string) {
-  return stages.indexOf(stage) <= (gates.value.currentStageIndex || 0)
-}
-
-function flowChipClass(stage: string) {
-  if (stage === gates.value.currentStage) return 'is-current'
-  if (isStageReached(stage)) return 'is-done'
-  return ''
-}
-
 function focusStage(stage: string) {
-  const id = stage === '缺陷修改' || stage === '回归测试' ? 'stage-缺陷登记' : `stage-${stage}`
+  const id = stageAnchorId(stage)
   document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+}
+
+function onSelectNode(stage: string) {
+  const def = stageDef(stage)
+  if (def?.section === 'project' && detail.value?.requirement.projectId) {
+    router.push(`/projects/${detail.value.requirement.projectId}`)
+    return
+  }
+  if (def?.section === 'docs') activeTab.value = 'docs'
+  else if (def?.section === 'tasks') activeTab.value = 'tasks'
+  else if (def?.section === 'defects') activeTab.value = 'defects'
+  else activeTab.value = 'flow'
+  requestAnimationFrame(() => focusStage(stage))
 }
 
 function repoBranchOptions(repo: ReleaseRepoPlan) {
@@ -1169,7 +1356,7 @@ function openTask(row: { id: string }) {
   border: 1px solid var(--el-border-color);
   border-radius: 6px;
   overflow: auto;
-  background: #fff;
+  background: rgba(11, 16, 32, 0.55);
 }
 .md-preview--full {
   min-height: 160px;

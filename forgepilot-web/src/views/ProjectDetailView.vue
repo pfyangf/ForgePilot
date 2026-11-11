@@ -1,6 +1,16 @@
 <template>
   <div v-if="store.detail">
-    <el-page-header @back="router.push('/projects')" :content="store.detail.project.name" />
+    <div class="fp-crumb">
+      <button type="button" @click="router.push('/projects')">项目</button>
+      <span>/</span>
+      <span>{{ store.detail.project.name }}</span>
+    </div>
+    <div class="page-header">
+      <div class="page-header__titles">
+        <h1 class="page-header__title">{{ store.detail.project.name }}</h1>
+        <p class="page-header__subtitle">先维护工具和模型，再在这里关联项目默认值。任务可以沿用，也可以在启动编码前改选。</p>
+      </div>
+    </div>
     <el-descriptions :column="2" border class="block">
       <el-descriptions-item label="编码">{{ store.detail.project.code }}</el-descriptions-item>
       <el-descriptions-item label="状态">{{ store.detail.project.status }}</el-descriptions-item>
@@ -10,22 +20,20 @@
     </el-descriptions>
 
     <el-card class="block">
-      <template #header>项目默认工具与模型</template>
-      <el-form label-width="120px" inline>
-        <el-form-item label="默认工具 ID">
-          <el-input v-model="defaultsForm.defaultAgentProfileId" style="width: 280px" placeholder="coding-tools id" />
-        </el-form-item>
-        <el-form-item label="默认 Provider">
-          <el-input v-model="defaultsForm.defaultModelProviderId" style="width: 280px" placeholder="model-providers id" />
-        </el-form-item>
-        <el-form-item label="默认模型">
-          <el-input v-model="defaultsForm.defaultModelId" style="width: 160px" />
-        </el-form-item>
-        <el-form-item>
+      <template #header>
+        <div class="row-between">
+          <span>默认绑定：编码工具 → 模型供应商 → 模型</span>
           <el-button type="primary" :loading="saving" @click="saveDefaults">保存默认值</el-button>
-        </el-form-item>
-      </el-form>
-      <p class="hint">当前：工具 {{ store.detail.project.defaultAgentProfileId || '无' }} / Provider {{ store.detail.project.defaultModelProviderId || '无' }} / 模型 {{ store.detail.project.defaultModelId || '无' }}</p>
+        </div>
+      </template>
+      <BindChain
+        :tools="tools"
+        :providers="providers"
+        v-model:agent-profile-id="defaultsForm.defaultAgentProfileId"
+        v-model:model-provider-id="defaultsForm.defaultModelProviderId"
+        v-model:model-id="defaultsForm.defaultModelId"
+      />
+      <p class="hint">任务启动时可选择「使用项目默认」。换成别的供应商时，模型列表会跟着变，不用手填模型 ID。</p>
     </el-card>
 
     <el-card class="block">
@@ -79,9 +87,19 @@
         </div>
       </template>
       <el-table :data="store.requirements" empty-text="还没有需求" @row-click="openRequirement">
-        <el-table-column prop="code" label="编码" width="160" />
-        <el-table-column prop="title" label="名称" />
-        <el-table-column prop="status" label="状态" width="120" />
+        <el-table-column label="名称" min-width="240">
+          <template #default="{ row }">
+            <div class="name-cell">
+              <span v-if="row.code" class="fp-code-chip fp-code-chip--req">{{ row.code }}</span>
+              <span>{{ row.title }}</span>
+            </div>
+          </template>
+        </el-table-column>
+        <el-table-column label="状态" width="120">
+          <template #default="{ row }">
+            <span class="fp-status-tag" :class="'is-' + (row.status === '已发布' || row.status === '已完成' ? 'success' : row.status === '待验收' ? 'warning' : 'primary')">{{ row.status }}</span>
+          </template>
+        </el-table-column>
         <el-table-column prop="priority" label="优先级" width="100" />
         <el-table-column label="任务" width="100">
           <template #default="{ row }">{{ row.taskDone }}/{{ row.taskTotal }}</template>
@@ -173,11 +191,16 @@ import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { apiFetch } from '@/api/http'
+import BindChain from '@/components/BindChain.vue'
+import { useCatalogOptions } from '@/composables/useCatalogOptions'
 import { useProjectsStore } from '@/stores/projects'
 
 const props = defineProps<{ id: string }>()
 const store = useProjectsStore()
 const router = useRouter()
+const catalog = useCatalogOptions()
+const providers = catalog.providers
+const tools = catalog.tools
 const showEmpty = computed(() => !store.detail && !store.loading)
 function backToProjects() {
   void router.push('/projects')
@@ -224,7 +247,7 @@ const defaultsForm = reactive({
 })
 
 async function refresh() {
-  await store.loadDetail(props.id)
+  await Promise.all([store.loadDetail(props.id), catalog.load()])
   if (store.detail) {
     defaultsForm.defaultAgentProfileId = store.detail.project.defaultAgentProfileId || ''
     defaultsForm.defaultModelProviderId = store.detail.project.defaultModelProviderId || ''
@@ -373,7 +396,13 @@ async function addRequirement() {
   align-items: center;
 }
 .hint {
-  color: #64748b;
-  margin: 0;
+  color: var(--fp-color-text-secondary);
+  margin: 12px 0 0;
+}
+.name-cell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 </style>

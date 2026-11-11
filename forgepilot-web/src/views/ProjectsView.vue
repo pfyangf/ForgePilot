@@ -1,12 +1,11 @@
 <template>
   <div>
-    <el-alert
-      type="info"
-      show-icon
-      :closable="false"
-      title="项目管理"
-      description="项目属于当前公司租户。租户管理员可新建项目；项目管理员可关联多条仓库。任务创建时会冻结当时的仓库集合和各仓库基线分支。"
-    />
+    <div class="page-header">
+      <div class="page-header__titles">
+        <h1 class="page-header__title">项目</h1>
+        <p class="page-header__subtitle">在项目里关联仓库、默认工具和模型，再提出需求交给平台托管推进。</p>
+      </div>
+    </div>
     <div class="toolbar">
       <el-button type="primary" @click="showCreate = true">新建项目</el-button>
       <el-button :loading="store.loading" @click="store.load()">刷新</el-button>
@@ -14,10 +13,20 @@
     </div>
     <el-card v-loading="store.loading">
       <el-table :data="store.items" empty-text="当前租户下没有可见项目" @row-click="openProject">
-        <el-table-column prop="name" label="名称" />
-        <el-table-column prop="code" label="编码" width="140" />
+        <el-table-column label="名称" min-width="200">
+          <template #default="{ row }">
+            <div class="name-cell">
+              <span>{{ row.name }}</span>
+              <span class="fp-code-chip">{{ row.code }}</span>
+            </div>
+          </template>
+        </el-table-column>
         <el-table-column prop="techStack" label="技术栈" width="140" />
-        <el-table-column prop="status" label="状态" width="100" />
+        <el-table-column label="状态" width="100">
+          <template #default="{ row }">
+            <span class="fp-status-tag is-primary">{{ row.status }}</span>
+          </template>
+        </el-table-column>
       </el-table>
     </el-card>
 
@@ -105,6 +114,12 @@ async function createProject() {
   margin: 16px 0;
 }
 .error {
-  color: #b91c1c;
+  color: var(--fp-color-danger);
+}
+.name-cell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 </style>
+

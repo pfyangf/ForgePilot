@@ -500,7 +500,7 @@ onMounted(async () => {
   width: 100%;
   text-align: left;
   border: 1px solid var(--fp-color-border);
-  background: #fff;
+  background: rgba(11, 16, 32, 0.55);
   border-radius: 8px;
   padding: 10px 12px;
   margin-bottom: 8px;
@@ -508,7 +508,7 @@ onMounted(async () => {
 }
 
 .doc-card:hover {
-  border-color: #c3d3ff;
+  border-color: rgba(76, 125, 255, 0.45);
 }
 
 .doc-card--active {
@@ -540,18 +540,18 @@ onMounted(async () => {
 }
 
 .tag--blue {
-  background: #eaf1ff;
-  color: #2f6bff;
+  background: var(--fp-color-primary-soft);
+  color: #8fb0ff;
 }
 
 .tag--green {
-  background: #e8f8f0;
-  color: #2ba471;
+  background: var(--fp-color-success-soft);
+  color: var(--fp-color-success);
 }
 
 .tag--orange {
-  background: #fff3e8;
-  color: #d97706;
+  background: var(--fp-color-warning-soft);
+  color: var(--fp-color-warning);
 }
 
 .editor-panel {
@@ -646,7 +646,7 @@ onMounted(async () => {
 .md-preview {
   padding: 16px 18px;
   overflow: auto;
-  background: #fff;
+  background: rgba(11, 16, 32, 0.55);
 }
 
 .compose-card {

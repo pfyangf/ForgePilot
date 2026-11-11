@@ -2,22 +2,28 @@
   <div class="page-stack workbench">
     <div class="page-header">
       <div class="page-header__titles">
-        <h1 class="page-header__title">工作台</h1>
-        <p class="page-header__subtitle">待评审、待验收和等待你处理的任务会集中在这里。</p>
+        <h1 class="page-header__title">{{ headingCount ? `今天有 ${headingCount} 件事等你处理` : '今天没有需要你处理的事' }}</h1>
+        <p class="page-header__subtitle">平台托管推进研发流程，你只需在评审和验收节点确认。</p>
       </div>
       <div class="page-header__actions">
         <el-input
           v-model="store.searchQuery"
           clearable
           style="width: 240px"
-          placeholder="搜索需求或任务"
-        />
-        <el-tooltip content="打开页面本身不写操作记录。列表按当前登录用户的租户与项目成员关系加载。" placement="bottom">
-          <el-button circle>
-            <span class="tip-icon">i</span>
-          </el-button>
-        </el-tooltip>
-        <el-button :loading="store.loading" @click="store.load()">刷新</el-button>
+          placeholder="编号、需求或任务"
+        >
+          <template #prefix>
+            <el-icon><Search /></el-icon>
+          </template>
+        </el-input>
+        <el-button :loading="store.loading" @click="store.load()">
+          <el-icon class="btn-icon"><Refresh /></el-icon>
+          刷新
+        </el-button>
+        <el-button type="primary" @click="router.push('/projects')">
+          <el-icon class="btn-icon"><Plus /></el-icon>
+          提出需求
+        </el-button>
       </div>
     </div>
 
@@ -33,26 +39,81 @@
       <span v-if="store.error" class="error">{{ store.error }}</span>
     </div>
 
-    <section v-if="store.scope === 'waiting' && store.inboxItems.length" class="inbox-card">
-      <div class="inbox-card__head">需要你处理 {{ store.inboxItems.length }} 项</div>
+    <div class="fp-hero-stats">
+      <button
+        v-for="tile in tiles"
+        :key="tile.key"
+        type="button"
+        class="fp-hero-stat"
+        :class="{ 'is-selected': store.selectedStat === tile.key }"
+        @click="toggleStat(tile.key)"
+      >
+        <span>
+          <el-icon><component :is="tile.icon" /></el-icon>
+          {{ tile.label }}
+        </span>
+        <strong>{{ tile.value }}</strong>
+      </button>
+    </div>
+
+    <section v-if="pipelineRequirements.length" class="fp-card" aria-label="进行中的研发">
+      <div class="fp-card__head">
+        <span class="fp-card__title">进行中的研发</span>
+        <span class="fp-card__hint">每个需求都是一条可视化流水线，当前节点高亮，点击即可打开。</span>
+      </div>
+      <div class="fp-card__body fp-pipe-list">
+        <button
+          v-for="row in pipelineRequirements"
+          :key="row.id"
+          type="button"
+          class="fp-pipe-card"
+          :class="{ 'is-current': isCurrentCard(row) }"
+          @click="openRequirement(row)"
+        >
+          <div class="fp-pipe-card__top">
+            <div>
+              <div class="fp-pipe-card__title">
+                {{ row.title }}
+                <span v-if="row.code" class="fp-code-chip fp-code-chip--req">{{ row.code }}</span>
+              </div>
+              <div class="fp-pipe-card__meta">
+                <span>{{ row.projectName }}</span>
+                <span v-if="workingBranch(row)" class="meta-branch">
+                  工作分支
+                  <BranchPill :name="workingBranch(row)" />
+                </span>
+                <span v-if="activeTask(row)">
+                  <span class="fp-code-chip fp-code-chip--task">{{ activeTask(row)?.code || '任务' }}</span>
+                  {{ taskStatusLabel(activeTask(row)?.status || '') }}
+                </span>
+              </div>
+            </div>
+            <span class="fp-status-tag" :class="toneClass(row.status)">{{ row.status }}</span>
+          </div>
+          <MiniFlow :status="String(row.status)" />
+        </button>
+      </div>
+    </section>
+
+    <section v-if="visibleInbox.length" class="fp-card inbox-card" aria-label="需要你处理">
+      <div class="fp-card__head">
+        <span class="fp-card__title">需要你处理</span>
+        <span class="fp-card__count">{{ visibleInbox.length }} 项</span>
+      </div>
       <div class="fp-inbox">
-        <div v-for="item in store.inboxItems" :key="item.kind + item.id" class="fp-inbox__row">
+        <div v-for="item in visibleInbox" :key="item.kind + item.id" class="fp-inbox__row">
+          <div class="fp-inbox__icon" :class="inboxTone(item.action)">
+            <el-icon><component :is="inboxIcon(item.action)" /></el-icon>
+          </div>
           <div>
             <div class="fp-inbox__title">
-              <span class="fp-code-chip" v-if="item.code">{{ item.code }}</span>
               <span>{{ item.title }}</span>
+              <span v-if="item.code" class="fp-code-chip" :class="codeClass(item)">{{ item.code }}</span>
             </div>
             <div class="fp-inbox__summary">{{ item.summary }}</div>
           </div>
           <div class="fp-inbox__actions">
-            <el-tag v-if="item.action === '去验收'" size="small" type="warning" effect="plain">待验收</el-tag>
-            <el-tag v-else-if="item.action === '去审核'" size="small" type="primary" effect="plain">待审核</el-tag>
-            <el-tag v-else size="small" effect="plain">待处理</el-tag>
-            <el-button
-              :type="item.action === '去处理' ? 'default' : 'primary'"
-              :plain="item.action === '去验收'"
-              @click="openInbox(item)"
-            >
+            <el-button :type="item.action === '去处理' ? 'default' : item.action === '去验收' ? 'warning' : 'primary'" @click="openInbox(item)">
               {{ item.action }}
             </el-button>
           </div>
@@ -60,21 +121,7 @@
       </div>
     </section>
 
-    <div class="fp-stat-tiles">
-      <button
-        v-for="tile in tiles"
-        :key="tile.key"
-        type="button"
-        class="fp-stat-tile"
-        :class="{ 'is-selected': store.selectedStat === tile.key }"
-        @click="toggleStat(tile.key)"
-      >
-        <div class="fp-stat-tile__label">{{ tile.label }}</div>
-        <div class="fp-stat-tile__value">{{ tile.value }}</div>
-      </button>
-    </div>
-
-    <el-card v-loading="store.loading" shadow="never">
+    <el-card v-if="showLists" v-loading="store.loading" shadow="never">
       <template #header>
         <div class="card-head">
           <span>需求</span>
@@ -85,7 +132,7 @@
         <el-table-column label="名称" min-width="280">
           <template #default="{ row }">
             <div class="name-cell">
-              <span v-if="row.code" class="fp-code-chip">{{ row.code }}</span>
+              <span v-if="row.code" class="fp-code-chip fp-code-chip--req">{{ row.code }}</span>
               <span>{{ row.title }}</span>
             </div>
           </template>
@@ -115,7 +162,7 @@
       </el-table>
     </el-card>
 
-    <el-card v-loading="store.loading" shadow="never">
+    <el-card v-if="showLists" v-loading="store.loading" shadow="never">
       <template #header>
         <div class="card-head">
           <span>任务</span>
@@ -126,7 +173,7 @@
         <el-table-column label="名称" min-width="280">
           <template #default="{ row }">
             <div class="name-cell">
-              <span v-if="row.code" class="fp-code-chip">{{ row.code }}</span>
+              <span v-if="row.code" class="fp-code-chip fp-code-chip--task">{{ row.code }}</span>
               <span>{{ row.title }}</span>
             </div>
           </template>
@@ -153,22 +200,62 @@
 <script setup lang="ts">
 import { computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
+import { CircleCheck, Plus, Refresh, Search, Stamp, VideoPlay, Warning } from '@element-plus/icons-vue'
+import BranchPill from '@/components/BranchPill.vue'
+import MiniFlow from '@/components/MiniFlow.vue'
+import { isInProgressRequirement } from '@/domain/pipeline'
+import { progressPercent, statusTone, taskStatusLabel } from '@/domain/labels'
 import { useAuthStore } from '@/stores/auth'
 import { useWorkbenchStore } from '@/stores/workbench'
-import { progressPercent, statusTone, taskStatusLabel } from '@/domain/labels'
+import type { WorkRequirement, WorkTask } from '@/types'
 
 const store = useWorkbenchStore()
 const auth = useAuthStore()
 const router = useRouter()
 
+const headingCount = computed(() => store.waitingActionCount || store.inboxItems.length)
+
 const tiles = computed(() => [
-  { key: 'requirements', label: '需求', value: store.counts.requirements },
-  { key: 'tasks', label: '任务', value: store.counts.tasks },
-  { key: 'running', label: '执行中', value: store.counts.running },
-  { key: 'verifying', label: '验证中', value: store.counts.verifying },
-  { key: 'approval', label: '待审核', value: store.counts.approval },
-  { key: 'waitingUser', label: '待处理', value: store.counts.waitingUser },
+  { key: 'waiting', label: '待我处理', value: store.waitingActionCount || store.inboxItems.length, icon: Warning },
+  { key: 'inProgress', label: '进行中的需求', value: inProgressAll.value.length, icon: VideoPlay },
+  { key: 'approval', label: '待代码评审', value: store.counts.approval, icon: Stamp },
+  { key: 'running', label: '执行中', value: store.counts.running, icon: CircleCheck },
 ])
+
+const inProgressAll = computed(() =>
+  store.visibleRequirements.filter((item) => isInProgressRequirement(String(item.status))),
+)
+
+const pipelineRequirements = computed(() => {
+  const query = store.searchQuery.trim().toLowerCase()
+  let list = inProgressAll.value
+  if (query) {
+    list = list.filter((item) =>
+      [item.code, item.title, item.projectName, item.status].some((part) => (part || '').toLowerCase().includes(query)),
+    )
+  }
+  if (store.selectedStat === 'approval') {
+    const ids = new Set(store.filteredTasks.map((item) => item.requirementId))
+    list = list.filter((item) => ids.has(item.id) || item.status === '开发中')
+  } else if (store.selectedStat === 'running') {
+    const ids = new Set(store.filteredTasks.map((item) => item.requirementId))
+    list = list.filter((item) => ids.has(item.id))
+  }
+  return list
+})
+
+const visibleInbox = computed(() => {
+  if (store.selectedStat === 'approval') {
+    return store.inboxItems.filter((item) => item.action === '去审核')
+  }
+  if (store.selectedStat === 'running') return []
+  if (store.selectedStat && store.selectedStat !== 'waiting') return store.inboxItems
+  return store.inboxItems
+})
+
+const showLists = computed(() => {
+  return Boolean(store.searchQuery.trim() || (store.selectedStat && store.selectedStat !== 'waiting' && store.selectedStat !== 'inProgress') || store.scope !== 'waiting')
+})
 
 function progressText(row: { id: string; taskDone?: number; taskTotal?: number }) {
   const progress = store.progress(row.id)
@@ -184,6 +271,42 @@ function progressClass(row: { id: string }) {
 function toneClass(status: string) {
   const tone = statusTone(status)
   return tone ? `is-${tone}` : ''
+}
+
+function workingBranch(row: WorkRequirement) {
+  const task = store.tasksFor(row.id).find((item) => item.branchName)
+  return task?.branchName || ''
+}
+
+function activeTask(row: WorkRequirement): WorkTask | undefined {
+  const tasks = store.tasksFor(row.id)
+  return (
+    tasks.find((item) => item.status === 'WAITING_APPROVAL') ||
+    tasks.find((item) => item.status === 'RUNNING' || item.status === 'VERIFYING' || item.status === 'WAITING_USER') ||
+    tasks.find((item) => item.status !== 'COMPLETED' && item.status !== 'CANCELLED')
+  )
+}
+
+function isCurrentCard(row: WorkRequirement) {
+  return row.status === '待验收' || activeTask(row)?.status === 'WAITING_APPROVAL'
+}
+
+function inboxIcon(action: string) {
+  if (action === '去验收') return CircleCheck
+  if (action === '去审核') return Stamp
+  return Warning
+}
+
+function inboxTone(action: string) {
+  if (action === '去验收') return 'is-warning'
+  if (action === '去审核') return ''
+  return ''
+}
+
+function codeClass(item: { kind: string; action: string }) {
+  if (item.kind === 'task') return 'fp-code-chip--task'
+  if (item.action === '去验收') return 'fp-code-chip--req'
+  return 'fp-code-chip--req'
 }
 
 function openRequirement(row: { id: string }) {
@@ -204,6 +327,9 @@ function openInbox(item: { kind: string; id: string }) {
 
 function toggleStat(key: string) {
   store.selectedStat = store.selectedStat === key ? '' : key
+  if (key === 'waiting' && store.scope !== 'waiting') {
+    void store.load('waiting')
+  }
 }
 
 function onScopeChange(value: string | number | boolean | undefined) {
@@ -251,11 +377,6 @@ watch(
   font-size: 11px;
   line-height: 18px;
 }
-.inbox-card__head {
-  margin-bottom: 8px;
-  font-weight: 600;
-  color: var(--fp-color-ink);
-}
 .card-head {
   display: flex;
   align-items: center;
@@ -271,8 +392,12 @@ watch(
   gap: 8px;
   flex-wrap: wrap;
 }
-.tip-icon {
-  font-style: italic;
-  font-weight: 700;
+.btn-icon {
+  margin-right: 4px;
+}
+.meta-branch {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 }
 </style>

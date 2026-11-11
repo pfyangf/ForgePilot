@@ -7,8 +7,17 @@
       </div>
       <div class="page-header__actions">
         <el-input v-model="filters.action" placeholder="动作，如 TASK_CREATE" clearable class="filter filter--sm" />
-        <el-input v-model="filters.projectId" placeholder="项目 ID" clearable class="filter filter--md" />
-        <el-input v-model="filters.actorUserId" placeholder="操作者用户 ID" clearable class="filter filter--md" />
+        <el-select v-model="filters.projectId" clearable filterable placeholder="选择项目" class="filter filter--md">
+          <el-option v-for="item in projects" :key="item.id" :label="item.name" :value="item.id" />
+        </el-select>
+        <el-select v-model="filters.actorUserId" clearable filterable placeholder="选择操作者" class="filter filter--md">
+          <el-option
+            v-for="item in users"
+            :key="item.id"
+            :label="item.displayName ? `${item.displayName}（${item.username}）` : item.username"
+            :value="item.id"
+          />
+        </el-select>
         <el-button type="primary" :loading="loading" @click="load">查询</el-button>
         <el-button @click="exportJson">导出 JSON</el-button>
         <el-button @click="exportCsv">导出 CSV</el-button>
@@ -26,7 +35,9 @@
             {{ formatActor(row) }}
           </template>
         </el-table-column>
-        <el-table-column prop="projectId" label="项目" width="280" />
+        <el-table-column label="项目" width="200">
+          <template #default="{ row }">{{ projectName(row.projectId) }}</template>
+        </el-table-column>
         <el-table-column prop="result" label="结果" width="90" />
         <el-table-column prop="summary" label="摘要" />
       </el-table>
@@ -65,6 +76,12 @@ const filters = reactive({
   projectId: '',
   actorUserId: '',
 })
+const projects = ref<Array<{ id: string; name: string }>>([])
+const users = ref<Array<{ id: string; username: string; displayName?: string }>>([])
+
+function projectName(id: string) {
+  return projects.value.find((item) => item.id === id)?.name || id || '-'
+}
 
 function formatActor(row: ActivityRow) {
   if (row.actorDisplayName && row.actorUsername) {
@@ -147,7 +164,21 @@ function downloadText(content: string, filename: string, type: string) {
   URL.revokeObjectURL(url)
 }
 
+async function loadFilters() {
+  try {
+    projects.value = await apiFetch('/api/v1/projects')
+  } catch {
+    projects.value = []
+  }
+  try {
+    users.value = await apiFetch('/api/v1/tenant/users')
+  } catch {
+    users.value = []
+  }
+}
+
 onMounted(() => {
+  void loadFilters()
   void load()
 })
 </script>

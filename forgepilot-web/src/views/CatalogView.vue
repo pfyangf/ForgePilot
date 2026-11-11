@@ -2,12 +2,12 @@
   <div class="catalog">
     <div class="page-header">
       <div class="page-header__titles">
-        <h1 class="page-header__title">模型与工具</h1>
-        <p class="page-header__subtitle">租户管理员维护 Provider 与编码工具 · 密钥只显示是否已配置</p>
+        <h1 class="page-header__title">先维护，再关联</h1>
+        <p class="page-header__subtitle">工具、供应商和模型都从已有清单里选，页面上不再手填模型 ID。</p>
       </div>
       <div class="page-header__actions">
-        <el-button type="primary" @click="openCreateProvider">新建 Provider</el-button>
         <el-button @click="showTool = true">新建编码工具</el-button>
+        <el-button type="primary" @click="openCreateProvider">新建供应商</el-button>
         <el-button :loading="loading" @click="refresh">刷新</el-button>
       </div>
     </div>
@@ -19,51 +19,75 @@
       class="block"
     />
 
-    <el-card>
-      <template #header>模型 Provider</template>
-      <el-table :data="providers" empty-text="还没有 Provider">
-        <el-table-column prop="name" label="名称" min-width="140" />
-        <el-table-column prop="providerType" label="类型" width="140" />
-        <el-table-column prop="upstreamWireApi" label="上游协议" width="140" />
-        <el-table-column label="模型码" min-width="160">
-          <template #default="{ row }">
-            {{ formatModels(row.models) }}
-          </template>
-        </el-table-column>
-        <el-table-column label="密钥" width="90">
-          <template #default="{ row }">{{ row.hasSecret ? '已配置' : '无' }}</template>
-        </el-table-column>
-        <el-table-column label="Codex 可用" width="110">
-          <template #default="{ row }">{{ row.eligibleForCodex ? '是' : '否' }}</template>
-        </el-table-column>
-        <el-table-column prop="baseUrl" label="Base URL" min-width="180" show-overflow-tooltip />
-        <el-table-column label="操作" width="260" fixed="right">
-          <template #default="{ row }">
-            <el-button link type="primary" @click="openEditProvider(row)">编辑</el-button>
-            <el-button link type="primary" :loading="testingId === row.id" @click="testProvider(row)">测试</el-button>
-            <el-button link type="danger" @click="removeProvider(row)">删除</el-button>
-          </template>
-        </el-table-column>
-      </el-table>
-    </el-card>
+    <div class="catalog-grid">
+      <el-card shadow="never">
+        <template #header>
+          <div class="card-head">
+            <span>模型供应商</span>
+            <span class="muted">{{ providers.length }}</span>
+          </div>
+        </template>
+        <div v-if="!providers.length" class="empty">还没有供应商</div>
+        <div v-for="row in providers" :key="row.id" class="provider-item">
+          <div class="provider-item__mark">{{ initials(row.name) }}</div>
+          <div class="provider-item__body">
+            <div class="provider-item__top">
+              <strong>{{ row.name }}</strong>
+              <span class="fp-status-tag" :class="row.enabled ? 'is-success' : 'is-muted'">{{ row.enabled ? '已启用' : '已停用' }}</span>
+            </div>
+            <div class="provider-item__meta">
+              {{ providerTypeLabel(row.providerType) }}
+              · {{ row.upstreamWireApi }}
+              · {{ row.hasSecret ? '密钥已配置' : '未配置密钥' }}
+            </div>
+            <div class="chip-row">
+              <span v-for="model in row.models || []" :key="model.code" class="chip" :title="model.name || model.code">
+                {{ model.name && model.name !== model.code ? model.name + ' · ' + model.code : model.code }}
+              </span>
+              <el-button link type="primary" @click="openEditProvider(row)">添加模型码</el-button>
+            </div>
+            <div class="row-actions">
+              <el-button link type="primary" @click="openEditProvider(row)">编辑</el-button>
+              <el-button link type="primary" :loading="testingId === row.id" @click="testProvider(row)">测试接口</el-button>
+              <el-button link type="danger" @click="removeProvider(row)">删除</el-button>
+            </div>
+          </div>
+        </div>
+      </el-card>
 
-    <el-card class="block">
-      <template #header>编码工具</template>
-      <el-table :data="tools" empty-text="还没有编码工具">
-        <el-table-column prop="name" label="名称" />
-        <el-table-column prop="agentType" label="类型" width="120" />
-        <el-table-column prop="modelId" label="默认模型" width="140" />
-        <el-table-column prop="modelProviderId" label="默认 Provider" />
-        <el-table-column label="启用" width="80">
-          <template #default="{ row }">{{ row.enabled ? '是' : '否' }}</template>
-        </el-table-column>
-      </el-table>
-    </el-card>
+      <el-card shadow="never">
+        <template #header>
+          <div class="card-head">
+            <span>编码工具</span>
+            <span class="muted">{{ tools.length }}</span>
+          </div>
+        </template>
+        <div v-if="!tools.length" class="empty">还没有编码工具</div>
+        <div v-for="row in tools" :key="row.id" class="tool-item">
+          <div>
+            <strong>{{ row.name }}</strong>
+            <div class="provider-item__meta">从清单选择类型和默认模型，不必手填枚举或模型 ID</div>
+            <div class="chip-row">
+              <span class="chip">{{ agentTypeLabel(row.agentType) || row.agentType }}</span>
+              <span v-if="providerName(row.modelProviderId) || row.modelId" class="chip">
+                {{ [providerName(row.modelProviderId), row.modelId].filter(Boolean).join(' / ') }}
+              </span>
+              <span class="fp-status-tag" :class="row.enabled ? 'is-success' : 'is-muted'">{{ row.enabled ? '已启用' : '已停用' }}</span>
+            </div>
+          </div>
+        </div>
+        <p class="hint">项目和任务里的「默认模型」只会列出已关联供应商下的模型。新增模型时，在供应商里维护码和显示名即可。</p>
+      </el-card>
+    </div>
 
-    <el-dialog v-model="showProvider" :title="editingProviderId ? '编辑 Provider' : '新建 Provider'" width="640px">
+    <el-dialog v-model="showProvider" :title="editingProviderId ? '编辑供应商' : '新建供应商'" width="640px">
       <el-form label-width="120px">
         <el-form-item label="名称" required><el-input v-model="providerForm.name" /></el-form-item>
-        <el-form-item label="类型" required><el-input v-model="providerForm.providerType" placeholder="OPENAI_COMPAT" /></el-form-item>
+        <el-form-item label="类型" required>
+          <el-select v-model="providerForm.providerType" style="width: 100%">
+            <el-option v-for="item in PROVIDER_TYPES" :key="item.value" :label="item.label" :value="item.value" />
+          </el-select>
+        </el-form-item>
         <el-form-item label="Base URL" required><el-input v-model="providerForm.baseUrl" /></el-form-item>
         <el-form-item label="上游协议" required>
           <el-select v-model="providerForm.upstreamWireApi" style="width: 100%">
@@ -85,12 +109,13 @@
         <el-form-item label="模型码">
           <div class="models">
             <div v-for="(model, index) in providerForm.models" :key="index" class="model-row">
-              <el-input v-model="model.code" placeholder="模型标识，如 gpt-5" />
-              <el-input v-model="model.name" placeholder="显示名（可选）" />
+              <el-input v-model="model.code" placeholder="模型标识，如 deepseek-chat" />
+              <el-input v-model="model.name" placeholder="显示名，如 DeepSeek V3" />
               <el-button link type="danger" @click="providerForm.models.splice(index, 1)">移除</el-button>
             </div>
             <el-button @click="providerForm.models.push({ code: '', name: '' })">添加模型码</el-button>
           </div>
+          <p class="hint">模型码在这里维护。项目和任务里只从这份清单选择，不会再手填 ID。</p>
         </el-form-item>
       </el-form>
       <template #footer>
@@ -102,13 +127,33 @@
     <el-dialog v-model="showTool" title="新建编码工具" width="560px">
       <el-form label-width="120px">
         <el-form-item label="名称" required><el-input v-model="toolForm.name" /></el-form-item>
-        <el-form-item label="类型" required><el-input v-model="toolForm.agentType" placeholder="CODEX_CLI" /></el-form-item>
-        <el-form-item label="默认 Provider">
-          <el-select v-model="toolForm.modelProviderId" clearable style="width: 100%">
+        <el-form-item label="类型" required>
+          <el-select v-model="toolForm.agentType" style="width: 100%">
+            <el-option v-for="item in AGENT_TYPES" :key="item.value" :label="item.label" :value="item.value" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="默认供应商">
+          <el-select v-model="toolForm.modelProviderId" clearable filterable style="width: 100%" @change="onToolProviderChange">
             <el-option v-for="p in providers" :key="p.id" :label="p.name" :value="p.id" />
           </el-select>
         </el-form-item>
-        <el-form-item label="默认模型"><el-input v-model="toolForm.modelId" /></el-form-item>
+        <el-form-item label="默认模型">
+          <el-select
+            v-model="toolForm.modelId"
+            clearable
+            filterable
+            style="width: 100%"
+            :disabled="!toolForm.modelProviderId"
+            :placeholder="toolForm.modelProviderId ? '从该供应商的模型里选择' : '请先选择供应商'"
+          >
+            <el-option
+              v-for="model in toolModelOptions"
+              :key="model.code"
+              :label="modelOptionLabel(model)"
+              :value="model.code"
+            />
+          </el-select>
+        </el-form-item>
       </el-form>
       <template #footer>
         <el-button @click="showTool = false">取消</el-button>
@@ -119,9 +164,18 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { apiFetch } from '@/api/http'
+import {
+  AGENT_TYPES,
+  PROVIDER_TYPES,
+  agentTypeLabel,
+  isModelCompatible,
+  modelOptionLabel,
+  modelsForProvider,
+  providerTypeLabel,
+} from '@/domain/catalog'
 
 interface ModelCode {
   code: string
@@ -182,12 +236,28 @@ const toolForm = reactive({
   name: 'Codex CLI',
   agentType: 'CODEX_CLI',
   modelProviderId: '',
-  modelId: 'gpt-5',
+  modelId: '',
 })
 
-function formatModels(models: ModelCode[] | null | undefined) {
-  if (!models || models.length === 0) return '-'
-  return models.map((m) => (m.name ? `${m.code} (${m.name})` : m.code)).join(', ')
+const toolModelOptions = computed(() => modelsForProvider(providers.value, toolForm.modelProviderId))
+
+function initials(name: string) {
+  const trimmed = (name || '').trim()
+  if (!trimmed) return 'P'
+  const parts = trimmed.split(/\s+/)
+  if (parts.length === 1) return trimmed.slice(0, 2).toUpperCase()
+  return (parts[0][0] + parts[1][0]).toUpperCase()
+}
+
+function providerName(id: string | null) {
+  if (!id) return ''
+  return providers.value.find((item) => item.id === id)?.name || ''
+}
+
+function onToolProviderChange() {
+  if (!isModelCompatible(providers.value, toolForm.modelProviderId, toolForm.modelId)) {
+    toolForm.modelId = ''
+  }
 }
 
 function resetProviderForm() {
@@ -260,13 +330,13 @@ async function saveProvider() {
         method: 'PUT',
         body: JSON.stringify(body),
       })
-      ElMessage.success('Provider 已更新')
+      ElMessage.success('供应商已更新')
     } else {
       await apiFetch('/api/v1/model-providers', {
         method: 'POST',
         body: JSON.stringify(body),
       })
-      ElMessage.success('Provider 已创建')
+      ElMessage.success('供应商已创建')
     }
     showProvider.value = false
     providerForm.apiKey = ''
@@ -298,7 +368,7 @@ async function testProvider(row: ProviderRow) {
 
 async function removeProvider(row: ProviderRow) {
   try {
-    await ElMessageBox.confirm(`确定删除 Provider「${row.name}」？`, '删除确认', { type: 'warning' })
+    await ElMessageBox.confirm(`确定删除供应商「${row.name}」？`, '删除确认', { type: 'warning' })
   } catch {
     return
   }
@@ -347,6 +417,89 @@ onMounted(() => {
 .block {
   margin-top: 12px;
 }
+.catalog-grid {
+  display: grid;
+  grid-template-columns: 1.2fr 0.8fr;
+  gap: 14px;
+}
+.card-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.muted {
+  color: var(--fp-color-muted);
+  font-weight: 400;
+}
+.provider-item,
+.tool-item {
+  display: flex;
+  gap: 12px;
+  padding: 12px 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+.provider-item:first-of-type,
+.tool-item:first-of-type {
+  border-top: 0;
+  padding-top: 0;
+}
+.provider-item__mark {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  background: var(--fp-color-primary-soft);
+  color: #8fb0ff;
+  font-weight: 700;
+  font-size: 12px;
+  flex: none;
+}
+.provider-item__body {
+  flex: 1;
+  min-width: 0;
+}
+.provider-item__top {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  align-items: center;
+}
+.provider-item__meta {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--fp-color-text-secondary);
+}
+.chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+  align-items: center;
+}
+.chip {
+  height: 24px;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: #121a2c;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  font-family: var(--fp-font-mono);
+  font-size: 11px;
+  line-height: 22px;
+  color: #d7deee;
+}
+.row-actions {
+  margin-top: 6px;
+}
+.hint {
+  margin: 8px 0 0;
+  color: var(--fp-color-text-secondary);
+  font-size: 12px;
+}
+.empty {
+  color: var(--fp-color-muted);
+  font-size: 13px;
+}
 .models {
   display: flex;
   flex-direction: column;
@@ -358,5 +511,10 @@ onMounted(() => {
   grid-template-columns: 1fr 1fr auto;
   gap: 8px;
   align-items: center;
+}
+@media (max-width: 1100px) {
+  .catalog-grid {
+    grid-template-columns: 1fr;
+  }
 }
 </style>

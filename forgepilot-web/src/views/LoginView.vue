@@ -2,7 +2,7 @@
   <div class="login">
     <el-card class="card" shadow="never">
       <div class="brand">ForgePilot</div>
-      <p class="subtitle">云端 AI Coding 平台</p>
+      <p class="subtitle">智能、可托管的 AI Coding 研发平台</p>
       <el-form label-position="top" @submit.prevent="submit">
         <el-form-item label="用户名">
           <el-input v-model="username" autocomplete="username" placeholder="请输入用户名" />
@@ -66,13 +66,19 @@ async function submit() {
   display: grid;
   place-items: center;
   padding: var(--fp-space-5);
-  background: var(--fp-color-bg);
+  background-color: #0b1020;
+  background-image:
+    radial-gradient(700px 360px at 20% 0%, rgba(76, 125, 255, 0.22), transparent 60%),
+    radial-gradient(520px 240px at 90% 10%, rgba(61, 220, 151, 0.08), transparent 55%),
+    linear-gradient(180deg, #10182c 0%, #0b1020 100%);
 }
 
 .card {
   width: min(400px, 100%);
-  border: 1px solid var(--fp-color-border);
-  border-radius: var(--fp-radius);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 16px;
+  background: linear-gradient(180deg, rgba(27, 36, 56, 0.94), rgba(17, 24, 42, 0.96));
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.35);
 }
 
 .card :deep(.el-card__body) {
@@ -84,7 +90,7 @@ async function submit() {
   font-size: 22px;
   font-weight: 700;
   letter-spacing: 0.02em;
-  color: var(--fp-color-text);
+  color: var(--fp-color-ink);
 }
 
 .subtitle {

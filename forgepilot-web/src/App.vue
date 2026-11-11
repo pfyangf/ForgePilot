@@ -45,11 +45,12 @@
 
     <el-container class="main-wrap">
       <el-header class="header" height="52px">
-        <span class="header__title">云端 AI Coding 平台 · 个人工作台</span>
+        <span class="header__title">云端 AI Coding 研发平台</span>
         <div class="header__actions" v-if="auth.user">
           <el-popover placement="bottom-end" :width="320" trigger="click">
             <template #reference>
-              <button class="header__link" type="button">
+              <button class="header__link header__notice" type="button">
+                <el-icon><Bell /></el-icon>
                 通知
                 <span class="header__badge">3</span>
               </button>
@@ -95,6 +96,7 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
   ArrowDown,
+  Bell,
   Connection,
   Cpu,
   Document,
@@ -187,8 +189,9 @@ async function logout() {
   width: 208px !important;
   max-width: 208px;
   min-width: 208px;
-  background: var(--fp-color-sidebar);
+  background: linear-gradient(180deg, #0c1324 0%, #0a0f1c 100%);
   color: var(--fp-color-sidebar-text);
+  border-right: 1px solid rgba(255, 255, 255, 0.06);
   overflow: hidden;
   box-sizing: border-box;
   transition: width 0.2s ease, flex-basis 0.2s ease, max-width 0.2s ease, min-width 0.2s ease;
@@ -207,7 +210,7 @@ async function logout() {
   align-items: center;
   gap: 8px;
   padding: 0 12px;
-  border-bottom: 1px solid rgba(148, 163, 184, 0.16);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
   box-sizing: border-box;
   overflow: hidden;
 }
@@ -224,10 +227,11 @@ async function logout() {
   display: grid;
   place-items: center;
   flex: 0 0 auto;
-  background: var(--fp-color-primary);
+  background: linear-gradient(180deg, #5b8aff, #3b6cf0);
   color: #fff;
   font-size: 11px;
   font-weight: 700;
+  box-shadow: 0 6px 14px rgba(76, 125, 255, 0.35);
 }
 
 .brand__text {
@@ -283,8 +287,8 @@ async function logout() {
 
 :deep(.el-menu) {
   --el-menu-bg-color: transparent;
-  --el-menu-text-color: #cbd5e1;
-  --el-menu-hover-bg-color: rgba(47, 107, 255, 0.16);
+  --el-menu-text-color: #9aa6c2;
+  --el-menu-hover-bg-color: rgba(255, 255, 255, 0.04);
   --el-menu-active-color: #ffffff;
   border-right: none;
 }
@@ -298,7 +302,7 @@ async function logout() {
   line-height: 40px;
   margin: 2px 0;
   border-radius: 8px;
-  color: #cbd5e1;
+  color: #9aa6c2;
 }
 
 :deep(.el-menu-item .el-icon) {
@@ -307,12 +311,14 @@ async function logout() {
 }
 
 :deep(.el-menu-item.is-active) {
-  background: var(--fp-color-primary) !important;
+  background: linear-gradient(90deg, rgba(76, 125, 255, 0.22), rgba(76, 125, 255, 0.08)) !important;
   color: #fff !important;
+  box-shadow: inset 3px 0 0 #4c7dff;
 }
 
 :deep(.el-menu-item:hover) {
-  background: rgba(47, 107, 255, 0.16);
+  background: rgba(255, 255, 255, 0.04);
+  color: #e8edf7;
 }
 
 :deep(.el-menu--collapse .el-menu-item) {
@@ -327,7 +333,7 @@ async function logout() {
 
 .aside-footer {
   padding: 12px;
-  border-top: 1px solid rgba(148, 163, 184, 0.16);
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
   box-sizing: border-box;
 }
 
@@ -341,7 +347,8 @@ async function logout() {
   gap: 10px;
   padding: 8px;
   border-radius: 8px;
-  background: rgba(15, 23, 42, 0.35);
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.06);
   overflow: hidden;
 }
 
@@ -355,7 +362,7 @@ async function logout() {
   width: 32px;
   height: 32px;
   border-radius: 50%;
-  background: rgba(47, 107, 255, 0.35);
+  background: rgba(76, 125, 255, 0.35);
   color: #fff;
   display: grid;
   place-items: center;
@@ -395,8 +402,10 @@ async function logout() {
   align-items: center;
   justify-content: space-between;
   padding: 0 20px;
-  background: var(--fp-color-surface);
-  border-bottom: 1px solid var(--fp-color-border);
+  background: rgba(11, 16, 32, 0.88);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  color: var(--fp-color-text-secondary);
+  backdrop-filter: blur(12px);
 }
 
 .header__title {
@@ -412,13 +421,13 @@ async function logout() {
 
 .header__link,
 .header__user {
-  border: 0;
-  background: transparent;
-  color: var(--fp-color-text);
-  font-size: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(255, 255, 255, 0.03);
+  color: #c9d3ea;
+  font-size: 13px;
   height: 32px;
   padding: 0 10px;
-  border-radius: 6px;
+  border-radius: 8px;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
@@ -427,7 +436,8 @@ async function logout() {
 
 .header__link:hover,
 .header__user:hover {
-  background: #f2f3f5;
+  background: rgba(255, 255, 255, 0.06);
+  color: #e8edf7;
 }
 
 .header__badge {
@@ -448,11 +458,19 @@ async function logout() {
 }
 
 .header__logout {
-  color: var(--fp-color-text-secondary);
+  color: #8b96b0;
 }
 
 .content {
   padding: 16px 20px 20px;
+  background-color: transparent;
+  background-image:
+    radial-gradient(900px 480px at 12% -10%, rgba(76, 125, 255, 0.22), transparent 58%),
+    radial-gradient(640px 280px at 100% 0%, rgba(61, 220, 151, 0.08), transparent 55%),
+    linear-gradient(rgba(76, 125, 255, 0.045) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(76, 125, 255, 0.045) 1px, transparent 1px),
+    linear-gradient(180deg, #10182c 0%, #0b1020 48%, #0b1020 100%);
+  background-size: auto, auto, 24px 24px, 24px 24px, auto;
 }
 
 .stub-panel__title {

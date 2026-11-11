@@ -21,13 +21,14 @@
           <span>
             关联需求
             <button v-if="task.requirementId" type="button" class="link" @click="router.push(`/requirements/${task.requirementId}`)">
-              {{ task.requirementCode || '打开需求' }}
+              <span v-if="task.requirementCode" class="fp-code-chip fp-code-chip--req">{{ task.requirementCode }}</span>
+              <span v-else>打开需求</span>
             </button>
           </span>
           <span>{{ task.projectName }}</span>
-          <span>Agent {{ task.agentLabel }}</span>
+          <span v-if="task.agentLabel">工具 {{ task.agentLabel }}</span>
           <span v-if="task.modelId">模型 {{ task.modelId }}</span>
-          <span v-if="task.branchName">工作分支 {{ task.branchName }}</span>
+          <span v-if="task.branchName" class="meta-branch">工作分支 <BranchPill :name="task.branchName" /></span>
         </div>
       </div>
     </div>
@@ -159,20 +160,18 @@
       <el-card class="span-2" shadow="never">
         <template #header>配置</template>
         <p class="hint">选择仓库时必须指定源分支和新建工作分支。默认按需求号生成，例如 fp/REQ-DEMO99-3；若冲突会带上任务号后缀。Agent 不得自行另起分支名。</p>
-        <div class="config-grid">
-          <el-form-item label="编码工具">
-            <el-select v-model="config.agentProfileId" clearable filterable placeholder="使用项目默认" style="width: 100%">
-              <el-option v-for="tool in tools" :key="tool.id" :label="tool.name" :value="tool.id" />
-            </el-select>
-          </el-form-item>
-          <el-form-item label="Provider">
-            <el-select v-model="config.modelProviderId" clearable filterable placeholder="使用项目默认" style="width: 100%">
-              <el-option v-for="item in providers" :key="item.id" :label="item.name" :value="item.id" />
-            </el-select>
-          </el-form-item>
-          <el-form-item label="模型">
-            <el-input v-model="config.modelId" placeholder="例如 gpt-5" />
-          </el-form-item>
+        <BindChain
+          :tools="tools"
+          :providers="providers"
+          allow-project-default
+          :default-agent-profile-id="projectDefaults.defaultAgentProfileId"
+          :default-model-provider-id="projectDefaults.defaultModelProviderId"
+          :default-model-id="projectDefaults.defaultModelId"
+          v-model:agent-profile-id="config.agentProfileId"
+          v-model:model-provider-id="config.modelProviderId"
+          v-model:model-id="config.modelId"
+        />
+        <div class="config-grid" style="margin-top: 12px">
           <el-form-item label="工作分支">
             <el-input v-model="config.workingBranch" placeholder="fp/需求编号" />
           </el-form-item>
@@ -262,6 +261,9 @@ import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { apiFetch, getAccessToken } from '@/api/http'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
+import BindChain from '@/components/BindChain.vue'
+import BranchPill from '@/components/BranchPill.vue'
+import { useCatalogOptions } from '@/composables/useCatalogOptions'
 import { useWorkbenchStore } from '@/stores/workbench'
 import { statusTone, taskStatusLabel } from '@/domain/labels'
 
@@ -281,8 +283,14 @@ const config = ref({
   agentProfileId: '',
   priority: 'MEDIUM',
 })
-const providers = ref<Array<{ id: string; name: string }>>([])
-const tools = ref<Array<{ id: string; name: string }>>([])
+const catalog = useCatalogOptions()
+const providers = catalog.providers
+const tools = catalog.tools
+const projectDefaults = ref({
+  defaultAgentProfileId: '',
+  defaultModelProviderId: '',
+  defaultModelId: '',
+})
 const documentPack = ref<{ frozen: boolean; sessionId?: string; items: Array<{ kind: string; typeLabel: string; title: string; sourceRef?: string; body: string; included?: boolean }> }>({
   frozen: false,
   items: [],
@@ -319,15 +327,20 @@ function syncForm() {
 }
 
 async function loadCatalog() {
+  await catalog.load()
+  const projectId = task.value?.projectId
+  if (!projectId) return
   try {
-    providers.value = await apiFetch('/api/v1/model-providers')
+    const detail = await apiFetch<{ project: { defaultAgentProfileId?: string; defaultModelProviderId?: string; defaultModelId?: string } }>(
+      `/api/v1/projects/${projectId}`,
+    )
+    projectDefaults.value = {
+      defaultAgentProfileId: detail.project.defaultAgentProfileId || '',
+      defaultModelProviderId: detail.project.defaultModelProviderId || '',
+      defaultModelId: detail.project.defaultModelId || '',
+    }
   } catch {
-    providers.value = []
-  }
-  try {
-    tools.value = await apiFetch('/api/v1/coding-tools')
-  } catch {
-    tools.value = []
+    projectDefaults.value = { defaultAgentProfileId: '', defaultModelProviderId: '', defaultModelId: '' }
   }
 }
 
@@ -681,6 +694,11 @@ async function requestChanges() {
   white-space: pre-wrap;
   font-size: 12px;
   color: var(--fp-color-text-secondary);
+}
+.meta-branch {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 }
 @media (max-width: 1100px) {
   .implement-grid,
