@@ -3,6 +3,7 @@ package com.forgepilot.exec.node;
 import jakarta.annotation.PostConstruct;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -18,6 +19,7 @@ public class NodeLifecycle {
     private final String nodeKey;
     private final int capacity;
     private final AtomicInteger activeSessions = new AtomicInteger();
+    private final AtomicBoolean registered = new AtomicBoolean();
 
     public NodeLifecycle(
             NodeRegistrationPort registrationPort,
@@ -30,24 +32,37 @@ public class NodeLifecycle {
 
     @PostConstruct
     public void start() {
+        tryRegister();
+        Executors.newSingleThreadScheduledExecutor(r -> {
+                    Thread t = new Thread(r, "node-heartbeat");
+                    t.setDaemon(true);
+                    return t;
+                })
+                .scheduleAtFixedRate(this::beat, 5, 15, TimeUnit.SECONDS);
+    }
+
+    private void tryRegister() {
         try {
             registrationPort.register(nodeKey, capacity);
-            Executors.newSingleThreadScheduledExecutor(r -> {
-                        Thread t = new Thread(r, "node-heartbeat");
-                        t.setDaemon(true);
-                        return t;
-                    })
-                    .scheduleAtFixedRate(this::beat, 5, 15, TimeUnit.SECONDS);
+            registered.set(true);
         } catch (RuntimeException ex) {
+            registered.set(false);
             log.warn("节点注册失败（控制面可能未启动）: {}", ex.getMessage());
         }
     }
 
     private void beat() {
+        if (!registered.get()) {
+            tryRegister();
+            if (!registered.get()) {
+                return;
+            }
+        }
         try {
             registrationPort.heartbeat(nodeKey, activeSessions.get());
         } catch (RuntimeException ex) {
             log.debug("心跳失败: {}", ex.getMessage());
+            registered.set(false);
         }
     }
 

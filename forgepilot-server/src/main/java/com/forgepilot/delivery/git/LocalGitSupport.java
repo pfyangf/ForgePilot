@@ -8,6 +8,8 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 /**
@@ -17,15 +19,24 @@ import org.springframework.stereotype.Component;
 @Component
 public class LocalGitSupport {
 
+    private static final Logger log = LoggerFactory.getLogger(LocalGitSupport.class);
+
     private volatile List<String> lastCommand = List.of();
 
     public void mirrorFetch(Path mirrorPath, String cloneUrl, String askPassToken) {
         try {
-            if (!Files.exists(mirrorPath)) {
+            if (!isUsableMirror(mirrorPath)) {
+                if (Files.exists(mirrorPath)) {
+                    deleteRecursive(mirrorPath);
+                }
                 Files.createDirectories(mirrorPath.getParent());
                 run(List.of("git", "clone", "--mirror", cloneUrl, mirrorPath.toString()), null, askPassToken);
-            } else {
+                return;
+            }
+            try {
                 run(List.of("git", "fetch", "--all", "--prune"), mirrorPath, askPassToken);
+            } catch (IllegalStateException ex) {
+                log.warn("更新仓库镜像失败，将使用已有镜像继续检出: {}", ex.getMessage());
             }
         } catch (IOException ex) {
             throw new IllegalStateException("准备 bare mirror 失败", ex);
@@ -43,22 +54,43 @@ public class LocalGitSupport {
                 deleteRecursive(checkoutPath);
             }
             Files.createDirectories(checkoutPath.getParent());
-            List<String> cmd = new ArrayList<>();
-            cmd.add("git");
-            cmd.add("clone");
-            if (mirrorPath != null && Files.exists(mirrorPath)) {
-                cmd.add("--reference");
-                cmd.add(mirrorPath.toString());
+            if (mirrorPath != null && isUsableMirror(mirrorPath)) {
+                // 从本地镜像检出，避免开工时再次访问不稳定的远端。
+                run(
+                        List.of(
+                                "git",
+                                "clone",
+                                "--branch",
+                                baseBranch,
+                                "--single-branch",
+                                mirrorPath.toString(),
+                                checkoutPath.toString()),
+                        null,
+                        null);
+                run(List.of("git", "remote", "set-url", "origin", cloneUrl), checkoutPath, null);
+                return;
             }
-            cmd.add("--branch");
-            cmd.add(baseBranch);
-            cmd.add("--single-branch");
-            cmd.add(cloneUrl);
-            cmd.add(checkoutPath.toString());
-            run(cmd, null, askPassToken);
+            run(
+                    List.of(
+                            "git",
+                            "clone",
+                            "--branch",
+                            baseBranch,
+                            "--single-branch",
+                            cloneUrl,
+                            checkoutPath.toString()),
+                    null,
+                    askPassToken);
         } catch (IOException ex) {
             throw new IllegalStateException("克隆检出失败", ex);
         }
+    }
+
+    static boolean isUsableMirror(Path mirrorPath) {
+        return mirrorPath != null
+                && Files.isDirectory(mirrorPath)
+                && Files.exists(mirrorPath.resolve("HEAD"))
+                && Files.isDirectory(mirrorPath.resolve("objects"));
     }
 
     public String revParse(Path checkout, String rev) {

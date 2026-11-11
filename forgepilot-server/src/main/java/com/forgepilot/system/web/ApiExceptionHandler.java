@@ -22,6 +22,12 @@ public class ApiExceptionHandler {
         return ResponseEntity.status(ex.getStatusCode()).body(body(ex.getStatusCode().value(), message));
     }
 
+    @ExceptionHandler(IllegalStateException.class)
+    public ResponseEntity<Map<String, Object>> handleIllegalState(IllegalStateException ex) {
+        String message = ex.getMessage() == null || ex.getMessage().isBlank() ? "服务器内部错误" : ex.getMessage();
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(body(500, message));
+    }
+
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<Map<String, Object>> handleValidation(MethodArgumentNotValidException ex) {
         String message = ex.getBindingResult().getFieldErrors().stream()

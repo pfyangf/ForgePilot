@@ -26,11 +26,24 @@ class ApiExceptionHandlerTest {
                 .andExpect(jsonPath("$.status").value(404));
     }
 
+    @Test
+    void illegalStateExceptionIncludesMessage() throws Exception {
+        mvc.perform(get("/stub/git-fail"))
+                .andExpect(status().isInternalServerError())
+                .andExpect(jsonPath("$.message").value("git 失败 (128): TLS 中断"))
+                .andExpect(jsonPath("$.status").value(500));
+    }
+
     @RestController
     static class StubController {
         @GetMapping("/stub/missing")
         public String missing() {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "任务不存在或无权查看");
+        }
+
+        @GetMapping("/stub/git-fail")
+        public String gitFail() {
+            throw new IllegalStateException("git 失败 (128): TLS 中断");
         }
     }
 }

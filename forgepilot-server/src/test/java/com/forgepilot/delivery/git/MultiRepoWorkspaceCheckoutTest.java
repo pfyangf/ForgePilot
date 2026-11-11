@@ -40,6 +40,37 @@ class MultiRepoWorkspaceCheckoutTest {
         assertThat(prepared.root().resolve("api/.git")).exists();
     }
 
+    @Test
+    void usesExistingMirrorWhenRemoteIsUnreachable() throws Exception {
+        Path remote = initBareWithCommit(temp.resolve("remote-demo.git"), "index.html", "ok");
+        LocalGitSupport git = new LocalGitSupport();
+        MultiRepoWorkspaceCheckout checkout = new MultiRepoWorkspaceCheckout(git);
+        String storage = temp.resolve("storage").toString();
+        var first = checkout.prepare(
+                storage,
+                "task-seed",
+                List.of(frozen("repoDemo", "demo", remote.toUri().toString())),
+                repo -> null);
+        assertThat(first.root().resolve("demo/index.html")).exists();
+
+        // 远端不可达时，只要本地镜像还在，第二次检出仍应成功，且 origin 指向真实仓库地址。
+        Files.move(remote, temp.resolve("remote-demo-gone.git"));
+        var second = checkout.prepare(
+                storage,
+                "task-retry",
+                List.of(frozen("repoDemo", "demo", remote.toUri().toString())),
+                repo -> null);
+        assertThat(second.root().resolve("demo/index.html")).exists();
+        String origin = git.run(List.of("git", "remote", "get-url", "origin"), second.root().resolve("demo"), null)
+                .stdout()
+                .trim();
+        assertThat(origin).isEqualTo(remote.toUri().toString());
+    }
+
+    private MultiRepoWorkspaceCheckout.FrozenRepo frozen(String id, String dir, String url) {
+        return new MultiRepoWorkspaceCheckout.FrozenRepo(id, dir, url, "master", null, "GITHUB", null);
+    }
+
     private Path initBareWithCommit(Path bare, String file, String content) throws Exception {
         Path seed = temp.resolve(bare.getFileName().toString() + "-seed");
         Files.createDirectories(seed);
