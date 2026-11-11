@@ -107,8 +107,6 @@ public class CodexCliAgentAdapter implements AgentAdapter {
                     List.of(
                             INTENDED_ENTRY,
                             "exec",
-                            "--sandbox",
-                            "workspace-write",
                             "--approve-for-me",
                             prompt),
                     Path.of(context.workspacePath()),
