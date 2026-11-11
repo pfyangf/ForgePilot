@@ -133,7 +133,8 @@ class CodexCliAgentAdapterTest {
         adapter.start(context);
 
         assertThat(recording.last).isNotNull();
-        assertThat(recording.last.command()).containsExactly("codex", "exec", prompt);
+        assertThat(recording.last.command()).containsExactly(
+                "codex", "exec", "--sandbox", "workspace-write", "--approve-for-me", prompt);
         assertThat(recording.last.command()).doesNotContain("--config").doesNotContain("-c");
         assertThat(recording.last.environment().get("CODEX_HOME")).isEqualTo(temp.resolve("home").toString());
         String toml = java.nio.file.Files.readString(temp.resolve("home/config.toml"));

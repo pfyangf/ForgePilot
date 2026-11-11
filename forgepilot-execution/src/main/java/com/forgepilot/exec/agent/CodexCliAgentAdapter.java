@@ -104,7 +104,13 @@ public class CodexCliAgentAdapter implements AgentAdapter {
                     : context.prompt();
             ProcessRuntime.StartedHandle handle = processRuntime.start(new ProcessRuntime.StartSpec(
                     context.sessionId(),
-                    List.of(INTENDED_ENTRY, "exec", prompt),
+                    List.of(
+                            INTENDED_ENTRY,
+                            "exec",
+                            "--sandbox",
+                            "workspace-write",
+                            "--approve-for-me",
+                            prompt),
                     Path.of(context.workspacePath()),
                     env,
                     log));

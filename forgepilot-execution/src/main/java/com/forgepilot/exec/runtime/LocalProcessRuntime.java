@@ -1,5 +1,6 @@
 package com.forgepilot.exec.runtime;
 
+import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -85,9 +86,11 @@ public class LocalProcessRuntime implements ProcessRuntime {
             }
             // 再次剥离，防止 putAll 后残留
             stripSensitive(pb.environment());
+            // Codex exec 在 stdin 是管道且未关闭时会一直等待附加输入。
+            pb.redirectInput(ProcessBuilder.Redirect.from(new File("/dev/null")));
             if (spec.stdoutLog() != null) {
                 pb.redirectErrorStream(true);
-                pb.redirectOutput(spec.stdoutLog().toFile());
+                pb.redirectOutput(ProcessBuilder.Redirect.appendTo(spec.stdoutLog().toFile()));
             }
             Process process = pb.start();
             processes.put(spec.handleId(), process);
