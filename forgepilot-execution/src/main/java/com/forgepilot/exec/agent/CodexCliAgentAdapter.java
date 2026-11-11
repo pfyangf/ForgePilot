@@ -108,6 +108,7 @@ public class CodexCliAgentAdapter implements AgentAdapter {
                             INTENDED_ENTRY,
                             "exec",
                             "--approve-for-me",
+                            "--skip-git-repo-check",
                             prompt),
                     Path.of(context.workspacePath()),
                     env,
