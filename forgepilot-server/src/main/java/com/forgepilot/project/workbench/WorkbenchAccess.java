@@ -42,6 +42,12 @@ public final class WorkbenchAccess {
                 || "WAITING_INPUT".equals(sessionStatus);
     }
 
+    /** 需求处于需要人工跟进的阶段：分析、评审、写设计、待开发或待验收。 */
+    public static boolean isRequirementWaitingOnMe(String requirementStatus) {
+        return Set.of("待分析", "待需求评审", "设计中", "待设计评审", "待开发", "待验收")
+                .contains(requirementStatus);
+    }
+
     public static boolean canSeeProject(String userTenantId, String projectTenantId, Set<String> memberships, String projectId) {
         return sameTenant(userTenantId, projectTenantId) && isMember(memberships, projectId);
     }

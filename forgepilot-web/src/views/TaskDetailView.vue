@@ -88,13 +88,20 @@
     <el-card v-else-if="task.status === 'PENDING' || task.status === 'PREPARING'" class="block">
       <template #header>待执行</template>
       <el-alert
-        type="info"
+        :type="task.unsupported?.startOrRetryBlocked ? 'warning' : 'info'"
         :closable="false"
         show-icon
-        title="可启动 Session。若本机无 codex 或执行节点不可达，会返回 NOT_AVAILABLE 并进入 WAITING_USER，不会假装成功。"
+        :title="task.unsupported?.startOrRetryBlocked
+          ? task.unsupported.startOrRetryReason
+          : '可启动 Session。若本机无 codex 或执行节点不可达，会返回 NOT_AVAILABLE 并进入 WAITING_USER，不会假装成功。'"
       />
       <div class="row">
-        <el-button type="primary" :loading="saving" @click="startAgent">启动 Agent Session</el-button>
+        <el-button
+          type="primary"
+          :loading="saving"
+          :disabled="task.unsupported?.startOrRetryBlocked"
+          @click="startAgent"
+        >启动 Agent Session</el-button>
         <el-button :loading="saving" @click="verify">平台验证</el-button>
         <el-button type="danger" :loading="saving" @click="cancel">取消</el-button>
       </div>

@@ -122,10 +122,12 @@ public class WorkbenchService {
             }
             boolean mine = WorkbenchAccess.isMyRequirement(
                     user.userId(), requirement.getCreatedBy(), requirement.getOwnerId());
+            boolean waitingOnRequirement =
+                    mine && WorkbenchAccess.isRequirementWaitingOnMe(requirement.getStatus());
             boolean include = switch (scope) {
                 case MEMBER -> true;
                 case MINE -> mine;
-                case WAITING -> waitingRequirementIds.contains(requirement.getId());
+                case WAITING -> waitingRequirementIds.contains(requirement.getId()) || waitingOnRequirement;
             };
             if (!include) {
                 continue;

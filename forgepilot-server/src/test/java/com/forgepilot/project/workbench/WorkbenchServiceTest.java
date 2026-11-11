@@ -45,6 +45,7 @@ class WorkbenchServiceTest {
         when(projectMapper.selectList(any(LambdaQueryWrapper.class))).thenReturn(List.of(project(PROJECT_A, TENANT_A, "支付")));
         when(requirementMapper.selectList(any(LambdaQueryWrapper.class))).thenReturn(List.of(
                 requirement("r-mine", PROJECT_A, USER_A, USER_A, "待分析"),
+                requirement("r-design", PROJECT_A, USER_A, USER_A, "设计中"),
                 requirement("r-other", PROJECT_A, "boss", "boss", "待开发")));
         when(codingTaskMapper.selectList(any(LambdaQueryWrapper.class))).thenReturn(List.of(
                 task("t-wait", "r-mine", PROJECT_A, USER_A, USER_A, "WAITING_APPROVAL"),
@@ -61,15 +62,19 @@ class WorkbenchServiceTest {
         AuthUser user = new AuthUser(USER_A, "demo_member", "演示成员", TENANT_A, List.of("MEMBER"), List.of("dashboard"));
 
         WorkbenchSnapshot mine = service.load(user, WorkbenchScope.MINE);
-        assertThat(mine.requirements()).extracting(WorkbenchRequirementItem::id).containsExactly("r-mine");
+        assertThat(mine.requirements()).extracting(WorkbenchRequirementItem::id).containsExactlyInAnyOrder("r-mine", "r-design");
         assertThat(mine.tasks()).extracting(WorkbenchTaskItem::id).containsExactly("t-wait");
 
         WorkbenchSnapshot waiting = service.load(user, WorkbenchScope.WAITING);
         assertThat(waiting.tasks()).extracting(WorkbenchTaskItem::id).containsExactly("t-wait");
+        assertThat(waiting.requirements())
+                .extracting(WorkbenchRequirementItem::id)
+                .contains("r-mine", "r-design")
+                .doesNotContain("r-other");
         assertThat(waiting.counts().approval()).isEqualTo(1);
 
         WorkbenchSnapshot member = service.load(user, WorkbenchScope.MEMBER);
-        assertThat(member.requirements()).extracting(WorkbenchRequirementItem::id).containsExactlyInAnyOrder("r-mine", "r-other");
+        assertThat(member.requirements()).extracting(WorkbenchRequirementItem::id).containsExactlyInAnyOrder("r-mine", "r-design", "r-other");
         assertThat(member.tasks()).extracting(WorkbenchTaskItem::id).containsExactlyInAnyOrder("t-wait", "t-peer");
         assertThat(member.tasks()).extracting(WorkbenchTaskItem::id).doesNotContain("t-foreign");
     }

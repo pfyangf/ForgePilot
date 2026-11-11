@@ -98,7 +98,7 @@ public class TaskService {
                 mrs,
                 List.of(),
                 "审核页可用 verify/delivery 活动日志中的 testFileChanges，或后续对 diff 调用 TestFileChangeDetector",
-                unsupportedActions(task.getStatus()));
+                unsupportedActions(task));
     }
 
     @Transactional
@@ -335,14 +335,23 @@ public class TaskService {
                 .toList();
     }
 
-    private UnsupportedActions unsupportedActions(String status) {
+    private UnsupportedActions unsupportedActions(CodingTask task) {
         // start/retry/request-changes 已由 TaskSessionService 接通；Codex 缺失时返回 NOT_AVAILABLE，不假装成功。
+        String startReason = "可通过 POST /tasks/{id}/start 启动 Session（需执行节点与 codex）";
         boolean execution = false;
+        if ("IMPLEMENT".equals(task.getTaskType()) || "BUGFIX".equals(task.getTaskType())) {
+            try {
+                lifecycleService.assertCanStart(task.getRequirementId(), task.getTaskType());
+            } catch (ResponseStatusException ex) {
+                execution = true;
+                startReason = ex.getReason() == null ? "尚不满足开工门禁" : ex.getReason();
+            }
+        }
         boolean requestChanges = false;
         boolean retry = false;
         return new UnsupportedActions(
                 execution,
-                "可通过 POST /tasks/{id}/start 启动 Session（需执行节点与 codex）",
+                startReason,
                 requestChanges,
                 "可通过 POST /tasks/{id}/request-changes 在同一工作区开新 Session",
                 retry,

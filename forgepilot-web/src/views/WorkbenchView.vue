@@ -5,7 +5,7 @@
       show-icon
       :closable="false"
       title="个人工作台已接通控制面"
-      description="列表按当前登录用户的租户与项目成员关系从服务器加载。默认先看「待我处理」。打开页面本身不写操作记录。"
+      description="列表按当前登录用户的租户与项目成员关系从服务器加载。默认「待我处理」会列出待评审、设计中、待开发和待验收的需求，以及等待你处理的任务。打开页面本身不写操作记录。"
     />
     <div class="toolbar">
       <el-radio-group :model-value="store.scope" @change="onScopeChange">

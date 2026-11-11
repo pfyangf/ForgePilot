@@ -23,5 +23,10 @@ class WorkbenchAccessTest {
         assertThat(WorkbenchAccess.isWaitingOnMe("WAITING_APPROVAL", "SUCCEEDED")).isTrue();
         assertThat(WorkbenchAccess.isWaitingOnMe("RUNNING", "WAITING_INPUT")).isTrue();
         assertThat(WorkbenchAccess.isWaitingOnMe("RUNNING", "RUNNING")).isFalse();
+        assertThat(WorkbenchAccess.isRequirementWaitingOnMe("待需求评审")).isTrue();
+        assertThat(WorkbenchAccess.isRequirementWaitingOnMe("设计中")).isTrue();
+        assertThat(WorkbenchAccess.isRequirementWaitingOnMe("待验收")).isTrue();
+        assertThat(WorkbenchAccess.isRequirementWaitingOnMe("开发中")).isFalse();
+        assertThat(WorkbenchAccess.isRequirementWaitingOnMe("已发布")).isFalse();
     }
 }
