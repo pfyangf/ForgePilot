@@ -77,7 +77,7 @@ public class CodexCliAgentAdapter implements AgentAdapter {
                     name = "ForgePilot Session Proxy"
                     base_url = "%s"
                     wire_api = "responses"
-                    # auth via env CODEX_API_KEY (session short-lived token only)
+                    env_key = "CODEX_API_KEY"
                     """.formatted(
                     context.modelId() == null ? "default" : context.modelId(),
                     context.modelProxyBaseUrl());

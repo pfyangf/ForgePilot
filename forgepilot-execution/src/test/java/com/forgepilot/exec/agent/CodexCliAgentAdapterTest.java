@@ -111,6 +111,7 @@ class CodexCliAgentAdapterTest {
         adapter.start(context);
         String toml = java.nio.file.Files.readString(temp.resolve("home/config.toml"));
         assertThat(toml).contains("wire_api = \"responses\"");
+        assertThat(toml).contains("env_key = \"CODEX_API_KEY\"");
         assertThat(toml).contains("base_url = \"http://127.0.0.1:19081/v1\"");
         assertThat(toml).doesNotContain("sk-provider");
         assertThat(toml.toLowerCase()).doesNotContain("api_key=");
@@ -139,6 +140,7 @@ class CodexCliAgentAdapterTest {
         assertThat(recording.last.environment().get("CODEX_HOME")).isEqualTo(temp.resolve("home").toString());
         String toml = java.nio.file.Files.readString(temp.resolve("home/config.toml"));
         assertThat(toml).contains("wire_api = \"responses\"");
+        assertThat(toml).contains("env_key = \"CODEX_API_KEY\"");
         assertThat(toml).contains("base_url = \"http://127.0.0.1:19081/v1\"");
     }
 
