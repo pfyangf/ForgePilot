@@ -115,4 +115,53 @@ class CodexCliAgentAdapterTest {
         assertThat(toml).doesNotContain("sk-provider");
         assertThat(toml.toLowerCase()).doesNotContain("api_key=");
     }
+
+    @Test
+    void doesNotPassConfigFilePathAndPassesPrompt() throws Exception {
+        RecordingRuntime recording = new RecordingRuntime();
+        CodexCliAgentAdapter adapter = new CodexCliAgentAdapter(recording, new SessionLogStore(temp.toString()));
+        String prompt = "实现九九乘法表页面，并保证算式正确。";
+        var context = new AgentAdapter.AgentExecutionContext(
+                "task-1",
+                "session-3",
+                temp.resolve("ws").toString(),
+                temp.resolve("home").toString(),
+                "http://127.0.0.1:19081/v1",
+                "fp_ms_short",
+                "gpt-test",
+                prompt);
+        adapter.start(context);
+
+        assertThat(recording.last).isNotNull();
+        assertThat(recording.last.command()).containsExactly("codex", "exec", prompt);
+        assertThat(recording.last.command()).doesNotContain("--config").doesNotContain("-c");
+        assertThat(recording.last.environment().get("CODEX_HOME")).isEqualTo(temp.resolve("home").toString());
+        String toml = java.nio.file.Files.readString(temp.resolve("home/config.toml"));
+        assertThat(toml).contains("wire_api = \"responses\"");
+        assertThat(toml).contains("base_url = \"http://127.0.0.1:19081/v1\"");
+    }
+
+    private static final class RecordingRuntime implements ProcessRuntime {
+        StartSpec last;
+
+        @Override
+        public boolean isCommandAvailable(String command) {
+            return true;
+        }
+
+        @Override
+        public StartedHandle start(StartSpec spec) {
+            this.last = spec;
+            return new StartedHandle(spec.handleId(), 1L);
+        }
+
+        @Override
+        public void destroy(String handleId) {
+        }
+
+        @Override
+        public boolean isAlive(String handleId) {
+            return false;
+        }
+    }
 }

@@ -28,7 +28,30 @@ public interface AgentRuntimePort {
             String modelId,
             String upstreamBaseUrl,
             String upstreamApiKey,
-            String upstreamWireApi) {
+            String upstreamWireApi,
+            String prompt) {
+        public StartCommand(
+                String taskId,
+                String sessionId,
+                String workspacePath,
+                String agentHomePath,
+                String providerId,
+                String modelId,
+                String upstreamBaseUrl,
+                String upstreamApiKey,
+                String upstreamWireApi) {
+            this(
+                    taskId,
+                    sessionId,
+                    workspacePath,
+                    agentHomePath,
+                    providerId,
+                    modelId,
+                    upstreamBaseUrl,
+                    upstreamApiKey,
+                    upstreamWireApi,
+                    null);
+        }
     }
 
     record StartResult(

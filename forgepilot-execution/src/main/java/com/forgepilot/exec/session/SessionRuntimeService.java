@@ -51,7 +51,8 @@ public class SessionRuntimeService {
                 request.agentHomePath(),
                 credential.baseUrl(),
                 credential.shortLivedToken(),
-                request.modelId());
+                request.modelId(),
+                request.prompt());
         try {
             adapter.start(context);
         } catch (AgentNotAvailableException ex) {
@@ -114,7 +115,30 @@ public class SessionRuntimeService {
             String modelId,
             String upstreamBaseUrl,
             String upstreamApiKey,
-            String upstreamWireApi) {
+            String upstreamWireApi,
+            String prompt) {
+        public StartRequest(
+                String taskId,
+                String sessionId,
+                String workspacePath,
+                String agentHomePath,
+                String providerId,
+                String modelId,
+                String upstreamBaseUrl,
+                String upstreamApiKey,
+                String upstreamWireApi) {
+            this(
+                    taskId,
+                    sessionId,
+                    workspacePath,
+                    agentHomePath,
+                    providerId,
+                    modelId,
+                    upstreamBaseUrl,
+                    upstreamApiKey,
+                    upstreamWireApi,
+                    null);
+        }
     }
 
     public record StartResult(

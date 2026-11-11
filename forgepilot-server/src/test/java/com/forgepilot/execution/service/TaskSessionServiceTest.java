@@ -34,6 +34,7 @@ import com.forgepilot.execution.web.TaskActionRequest;
 import com.forgepilot.project.domain.Project;
 import com.forgepilot.project.domain.ProjectRepository;
 import com.forgepilot.project.persistence.ProjectMapper;
+import com.forgepilot.project.persistence.RequirementMapper;
 import com.forgepilot.project.persistence.ProjectMemberMapper;
 import com.forgepilot.project.persistence.ProjectRepositoryMapper;
 import com.forgepilot.project.lifecycle.RequirementLifecycleService;
@@ -115,6 +116,7 @@ class TaskSessionServiceTest {
                 new InMemorySessionLogStream(),
                 new OutboxService(mock(OutboxMapper.class), new ObjectMapper(), new InMemoryControlEventPublisher()),
                 new InMemoryGitCredentialService(900),
+                mock(RequirementMapper.class),
                 mock(RequirementLifecycleService.class),
                 temp.resolve("storage").toString());
         when(executionNodeMapper.selectList(any(LambdaQueryWrapper.class))).thenReturn(List.of());

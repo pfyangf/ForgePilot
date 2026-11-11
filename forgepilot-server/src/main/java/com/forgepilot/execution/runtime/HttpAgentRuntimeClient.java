@@ -42,6 +42,7 @@ public class HttpAgentRuntimeClient implements AgentRuntimePort {
             body.put("upstreamBaseUrl", command.upstreamBaseUrl());
             body.put("upstreamApiKey", command.upstreamApiKey());
             body.put("upstreamWireApi", command.upstreamWireApi());
+            body.put("prompt", command.prompt());
             HttpResponse<String> response = exchange("POST", "/api/v1/runtime/sessions/start", body);
             if (response.statusCode() == 503) {
                 JsonNode err = objectMapper.readTree(response.body());

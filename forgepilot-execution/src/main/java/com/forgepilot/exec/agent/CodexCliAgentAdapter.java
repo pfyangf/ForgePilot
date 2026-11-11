@@ -97,9 +97,14 @@ public class CodexCliAgentAdapter implements AgentAdapter {
             env.put("OPENAI_BASE_URL", context.modelProxyBaseUrl());
             // Explicitly do NOT set OPENAI_API_KEY to a provider secret
 
+            // Codex CLI treats --config/-c as a key=value override, not a file path.
+            // Config is already at $CODEX_HOME/config.toml and loads without that flag.
+            String prompt = context.prompt() == null || context.prompt().isBlank()
+                    ? "Complete the ForgePilot coding task in the current workspace."
+                    : context.prompt();
             ProcessRuntime.StartedHandle handle = processRuntime.start(new ProcessRuntime.StartSpec(
                     context.sessionId(),
-                    List.of(INTENDED_ENTRY, "exec", "--config", config.toString()),
+                    List.of(INTENDED_ENTRY, "exec", prompt),
                     Path.of(context.workspacePath()),
                     env,
                     log));

@@ -51,7 +51,19 @@ public interface AgentAdapter {
             String agentHomePath,
             String modelProxyBaseUrl,
             String shortLivedModelToken,
-            String modelId) {
+            String modelId,
+            String prompt) {
+        public AgentExecutionContext(
+                String taskId,
+                String sessionId,
+                String workspacePath,
+                String agentHomePath,
+                String modelProxyBaseUrl,
+                String shortLivedModelToken,
+                String modelId) {
+            this(taskId, sessionId, workspacePath, agentHomePath, modelProxyBaseUrl, shortLivedModelToken, modelId, null);
+        }
+
         public AgentExecutionContext(
                 String taskId,
                 String sessionId,
@@ -59,7 +71,7 @@ public interface AgentAdapter {
                 String agentHomePath,
                 String modelProxyBaseUrl,
                 String shortLivedModelToken) {
-            this(taskId, sessionId, workspacePath, agentHomePath, modelProxyBaseUrl, shortLivedModelToken, null);
+            this(taskId, sessionId, workspacePath, agentHomePath, modelProxyBaseUrl, shortLivedModelToken, null, null);
         }
     }
 }

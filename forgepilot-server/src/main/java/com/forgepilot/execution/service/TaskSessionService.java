@@ -25,8 +25,10 @@ import com.forgepilot.execution.stream.SessionLogStream;
 import com.forgepilot.system.outbox.OutboxService;
 import com.forgepilot.execution.web.TaskActionRequest;
 import com.forgepilot.project.domain.Project;
+import com.forgepilot.project.domain.Requirement;
 import com.forgepilot.project.domain.ProjectRepository;
 import com.forgepilot.project.persistence.ProjectMapper;
+import com.forgepilot.project.persistence.RequirementMapper;
 import com.forgepilot.project.persistence.ProjectRepositoryMapper;
 import com.forgepilot.project.lifecycle.RequirementLifecycleService;
 import com.forgepilot.project.service.ProjectAccess;
@@ -86,6 +88,7 @@ public class TaskSessionService {
     private final SessionLogStream sessionLogStream;
     private final OutboxService outboxService;
     private final GitCredentialPort gitCredentialPort;
+    private final RequirementMapper requirementMapper;
     private final RequirementLifecycleService lifecycleService;
     private final String storageRoot;
 
@@ -110,6 +113,7 @@ public class TaskSessionService {
             SessionLogStream sessionLogStream,
             OutboxService outboxService,
             GitCredentialPort gitCredentialPort,
+            RequirementMapper requirementMapper,
             @Lazy RequirementLifecycleService lifecycleService,
             @Value("${forgepilot.workspace.storage-root:${java.io.tmpdir}/forgepilot-workspaces}") String storageRoot) {
         this.codingTaskMapper = codingTaskMapper;
@@ -132,6 +136,7 @@ public class TaskSessionService {
         this.sessionLogStream = sessionLogStream;
         this.outboxService = outboxService;
         this.gitCredentialPort = gitCredentialPort;
+        this.requirementMapper = requirementMapper;
         this.lifecycleService = lifecycleService;
         this.storageRoot = storageRoot;
     }
@@ -337,7 +342,8 @@ public class TaskSessionService {
                 selection.modelId(),
                 provider.getBaseUrl(),
                 upstreamKey,
-                provider.getUpstreamWireApi()));
+                provider.getUpstreamWireApi(),
+                buildAgentPrompt(task, project, note)));
 
         // 掩码：活动日志不写密钥
         outboxService.enqueue(
@@ -421,6 +427,48 @@ public class TaskSessionService {
             sessionLogStream.append(session.getId(), line);
         }
         return toResult(task, session, "Session 已启动", logs);
+    }
+
+
+    private String buildAgentPrompt(CodingTask task, Project project, String note) {
+        Requirement requirement = requirementMapper.selectById(task.getRequirementId());
+        StringBuilder prompt = new StringBuilder();
+        prompt.append("你是 ForgePilot 的编码执行者。请在当前工作区完成下面的任务，不要另起分支名（平台已使用 ")
+                .append(task.getBranchName() == null ? "fp/" + task.getId() : task.getBranchName())
+                .append("）。\n\n");
+        if (project != null) {
+            prompt.append("项目：").append(nullToEmpty(project.getName())).append("\n");
+        }
+        if (requirement != null) {
+            prompt.append("需求：")
+                    .append(nullToEmpty(requirement.getCode()))
+                    .append(" ")
+                    .append(nullToEmpty(requirement.getTitle()))
+                    .append("\n");
+            appendSection(prompt, "需求说明", requirement.getDescription());
+            appendSection(prompt, "背景", requirement.getBackground());
+            appendSection(prompt, "范围", requirement.getScope());
+            appendSection(prompt, "验收标准", requirement.getAcceptance());
+        }
+        prompt.append("任务：")
+                .append(nullToEmpty(task.getCode()))
+                .append(" ")
+                .append(nullToEmpty(task.getTitle()))
+                .append("\n");
+        appendSection(prompt, "任务说明", task.getDescription());
+        appendSection(prompt, "附加说明", note);
+        return prompt.toString().trim();
+    }
+
+    private static void appendSection(StringBuilder prompt, String title, String body) {
+        if (body == null || body.isBlank()) {
+            return;
+        }
+        prompt.append(title).append("：\n").append(body.trim()).append("\n\n");
+    }
+
+    private static String nullToEmpty(String value) {
+        return value == null ? "" : value;
     }
 
     private void cancelActiveSessions(AuthUser user, CodingTask task, String reason) {
