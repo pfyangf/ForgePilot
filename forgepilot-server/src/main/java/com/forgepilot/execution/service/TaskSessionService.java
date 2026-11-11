@@ -25,10 +25,8 @@ import com.forgepilot.execution.stream.SessionLogStream;
 import com.forgepilot.system.outbox.OutboxService;
 import com.forgepilot.execution.web.TaskActionRequest;
 import com.forgepilot.project.domain.Project;
-import com.forgepilot.project.domain.Requirement;
 import com.forgepilot.project.domain.ProjectRepository;
 import com.forgepilot.project.persistence.ProjectMapper;
-import com.forgepilot.project.persistence.RequirementMapper;
 import com.forgepilot.project.persistence.ProjectRepositoryMapper;
 import com.forgepilot.project.lifecycle.RequirementLifecycleService;
 import com.forgepilot.project.service.ProjectAccess;
@@ -43,7 +41,7 @@ import com.forgepilot.system.persistence.IntegrationSecretMapper;
 import com.forgepilot.system.persistence.ModelProviderMapper;
 import com.forgepilot.system.service.GuidanceService;
 import com.forgepilot.system.service.GuidanceService.CompositionSnapshotView;
-import com.forgepilot.system.service.GuidanceService.EffectiveItem;
+import com.forgepilot.execution.service.TaskDocumentPackService.DocumentPack;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -88,7 +86,7 @@ public class TaskSessionService {
     private final SessionLogStream sessionLogStream;
     private final OutboxService outboxService;
     private final GitCredentialPort gitCredentialPort;
-    private final RequirementMapper requirementMapper;
+    private final TaskDocumentPackService documentPackService;
     private final RequirementLifecycleService lifecycleService;
     private final String storageRoot;
 
@@ -113,7 +111,7 @@ public class TaskSessionService {
             SessionLogStream sessionLogStream,
             OutboxService outboxService,
             GitCredentialPort gitCredentialPort,
-            RequirementMapper requirementMapper,
+            TaskDocumentPackService documentPackService,
             @Lazy RequirementLifecycleService lifecycleService,
             @Value("${forgepilot.workspace.storage-root:${java.io.tmpdir}/forgepilot-workspaces}") String storageRoot) {
         this.codingTaskMapper = codingTaskMapper;
@@ -136,7 +134,7 @@ public class TaskSessionService {
         this.sessionLogStream = sessionLogStream;
         this.outboxService = outboxService;
         this.gitCredentialPort = gitCredentialPort;
-        this.requirementMapper = requirementMapper;
+        this.documentPackService = documentPackService;
         this.lifecycleService = lifecycleService;
         this.storageRoot = storageRoot;
     }
@@ -319,20 +317,19 @@ public class TaskSessionService {
         session.setCreatedBy(user.userId());
         agentSessionMapper.insert(session);
 
-        for (EffectiveItem item : snapshot.items()) {
-            SessionConventionSnapshot row = new SessionConventionSnapshot();
-            row.setId(UUID.randomUUID().toString());
-            row.setSessionId(session.getId());
-            row.setGuidanceItemId(item.guidanceItemId());
-            row.setScope(item.scope());
-            row.setTitle(item.title());
-            row.setContentHash(Integer.toHexString((item.scope() + "|" + item.title() + "|" + item.body()).hashCode()));
-            row.setCreatedAt(Instant.now());
-            sessionConventionSnapshotMapper.insert(row);
-        }
-        appendEvent(session, "SESSION_CREATED", "创建 Session，规约快照 hash=" + snapshot.compositionHash());
+        DocumentPack pack = documentPackService.assemble(user, task);
+        documentPackService.persist(session.getId(), pack);
+        appendEvent(
+                session,
+                "SESSION_CREATED",
+                "创建 Session，规约快照 hash="
+                        + snapshot.compositionHash()
+                        + "，文档包 "
+                        + pack.items().size()
+                        + " 项");
 
         String upstreamKey = loadProviderKey(provider);
+        String prompt = documentPackService.toPrompt(pack, task.getBranchName(), note);
         AgentRuntimePort.StartResult runtime = agentRuntimePort.start(new AgentRuntimePort.StartCommand(
                 task.getId(),
                 session.getId(),
@@ -343,7 +340,7 @@ public class TaskSessionService {
                 provider.getBaseUrl(),
                 upstreamKey,
                 provider.getUpstreamWireApi(),
-                buildAgentPrompt(task, project, note)));
+                prompt));
 
         // 掩码：活动日志不写密钥
         outboxService.enqueue(
@@ -429,47 +426,6 @@ public class TaskSessionService {
         return toResult(task, session, "Session 已启动", logs);
     }
 
-
-    private String buildAgentPrompt(CodingTask task, Project project, String note) {
-        Requirement requirement = requirementMapper.selectById(task.getRequirementId());
-        StringBuilder prompt = new StringBuilder();
-        prompt.append("你是 ForgePilot 的编码执行者。请在当前工作区完成下面的任务，不要另起分支名（平台已使用 ")
-                .append(task.getBranchName() == null ? "fp/" + task.getId() : task.getBranchName())
-                .append("）。\n\n");
-        if (project != null) {
-            prompt.append("项目：").append(nullToEmpty(project.getName())).append("\n");
-        }
-        if (requirement != null) {
-            prompt.append("需求：")
-                    .append(nullToEmpty(requirement.getCode()))
-                    .append(" ")
-                    .append(nullToEmpty(requirement.getTitle()))
-                    .append("\n");
-            appendSection(prompt, "需求说明", requirement.getDescription());
-            appendSection(prompt, "背景", requirement.getBackground());
-            appendSection(prompt, "范围", requirement.getScope());
-            appendSection(prompt, "验收标准", requirement.getAcceptance());
-        }
-        prompt.append("任务：")
-                .append(nullToEmpty(task.getCode()))
-                .append(" ")
-                .append(nullToEmpty(task.getTitle()))
-                .append("\n");
-        appendSection(prompt, "任务说明", task.getDescription());
-        appendSection(prompt, "附加说明", note);
-        return prompt.toString().trim();
-    }
-
-    private static void appendSection(StringBuilder prompt, String title, String body) {
-        if (body == null || body.isBlank()) {
-            return;
-        }
-        prompt.append(title).append("：\n").append(body.trim()).append("\n\n");
-    }
-
-    private static String nullToEmpty(String value) {
-        return value == null ? "" : value;
-    }
 
     private void cancelActiveSessions(AuthUser user, CodingTask task, String reason) {
         List<AgentSession> active = agentSessionMapper.selectList(new LambdaQueryWrapper<AgentSession>()

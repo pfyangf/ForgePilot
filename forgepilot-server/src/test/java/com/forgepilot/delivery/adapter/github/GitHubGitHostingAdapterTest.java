@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.forgepilot.delivery.port.GitHostingPort.CreateDraft;
+import com.forgepilot.delivery.port.GitHostingPort.MergeBranch;
 import com.forgepilot.delivery.port.GitHostingPort.RepositoryRef;
 import java.util.ArrayList;
 import java.util.List;
@@ -93,5 +94,34 @@ class GitHubGitHostingAdapterTest {
         var client = new JdkGitHubApiClient();
         assertThatThrownBy(() -> client.exchange("GET", "https://x/ghp_secret-token/y", null, Map.of(), "ghp_secret-token"))
                 .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void mergeBranchPostsBaseAndHeadAndTreats204AsAlreadyMerged() throws Exception {
+        List<GitHubApiClient.Response> script = new ArrayList<>();
+        script.add(new GitHubApiClient.Response(201, "{\"sha\":\"deadbeef\"}"));
+        script.add(new GitHubApiClient.Response(204, ""));
+        AtomicInteger idx = new AtomicInteger();
+        List<String> bodies = new ArrayList<>();
+        GitHubApiClient client = (method, url, body, query, token) -> {
+            assertThat(method).isEqualTo("POST");
+            assertThat(url).endsWith("/merges");
+            assertThat(url).doesNotContain(token);
+            bodies.add(body);
+            return script.get(idx.getAndIncrement());
+        };
+        var adapter = new GitHubGitHostingAdapter(client, MAPPER, "ghp_secret-token");
+        RepositoryRef ref = new RepositoryRef(
+                "repo-1", "GITHUB", null, "https://github.com/pfyangf/forgepilot-demo99.git");
+        MergeBranch cmd = new MergeBranch(ref, "fp/REQ-DEMO99-3", "main", "release 1.0.0");
+        var first = adapter.mergeBranch(cmd);
+        assertThat(first.mergeSha()).isEqualTo("deadbeef");
+        assertThat(first.alreadyMerged()).isFalse();
+        var second = adapter.mergeBranch(cmd);
+        assertThat(second.alreadyMerged()).isTrue();
+        JsonNode json = MAPPER.readTree(bodies.get(0));
+        assertThat(json.get("base").asText()).isEqualTo("main");
+        assertThat(json.get("head").asText()).isEqualTo("fp/REQ-DEMO99-3");
+        assertThat(json.get("commit_message").asText()).isEqualTo("release 1.0.0");
     }
 }

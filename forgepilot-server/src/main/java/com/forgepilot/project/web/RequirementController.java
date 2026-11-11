@@ -1,7 +1,9 @@
 package com.forgepilot.project.web;
 
 import com.forgepilot.execution.service.TaskService;
+import com.forgepilot.execution.service.TaskService.TaskDefaultsView;
 import com.forgepilot.execution.service.TaskService.TaskView;
+import com.forgepilot.project.lifecycle.RequirementLifecycleService.ReleasePlanView;
 import com.forgepilot.execution.web.CreateTaskRequest;
 import com.forgepilot.project.lifecycle.RequirementLifecycleService;
 import com.forgepilot.project.lifecycle.RequirementLifecycleService.DefectView;
@@ -52,6 +54,17 @@ public class RequirementController {
     @GetMapping("/{requirementId}/tasks")
     public List<TaskView> tasks(@PathVariable String requirementId) {
         return taskService.listByRequirement(AuthContext.require(), requirementId);
+    }
+
+    @GetMapping("/{requirementId}/task-defaults")
+    public TaskDefaultsView taskDefaults(@PathVariable String requirementId) {
+        return taskService.defaults(AuthContext.require(), requirementId);
+    }
+
+    @GetMapping("/{requirementId}/release-plan")
+    public ReleasePlanView releasePlan(@PathVariable String requirementId) {
+        var requirement = requirementService.get(AuthContext.require(), requirementId);
+        return lifecycleService.releasePlan(AuthContext.require(), requirement.requirement().projectId(), List.of(requirementId));
     }
 
     @PostMapping("/{requirementId}/tasks")

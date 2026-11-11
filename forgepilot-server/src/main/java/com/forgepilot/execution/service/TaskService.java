@@ -9,8 +9,11 @@ import com.forgepilot.execution.persistence.TaskRepositoryFreezeMapper;
 import com.forgepilot.execution.persistence.TaskStateHistoryMapper;
 import com.forgepilot.delivery.domain.MergeRequestRecord;
 import com.forgepilot.delivery.persistence.MergeRequestMapper;
+import com.forgepilot.execution.branch.WorkingBranchNames;
 import com.forgepilot.execution.web.CreateTaskRequest;
+import com.forgepilot.execution.web.RepoCheckoutBinding;
 import com.forgepilot.execution.web.TaskActionRequest;
+import com.forgepilot.execution.web.UpdateTaskRequest;
 import com.forgepilot.project.domain.Project;
 import com.forgepilot.project.domain.ProjectRepository;
 import com.forgepilot.project.domain.Requirement;
@@ -132,33 +135,43 @@ public class TaskService {
         }
 
         String taskId = UUID.randomUUID().toString();
+        String taskCode = nextTaskCode(project.getCode());
+        java.util.LinkedHashSet<String> taken = takenWorkingBranches(project.getId(), null);
+        String workingBranch = resolveWorkingBranch(request.workingBranch(), requirement.getCode(), taskCode, taken);
         CodingTask task = new CodingTask();
         task.setId(taskId);
         task.setProjectId(project.getId());
         task.setRequirementId(requirementId);
-        task.setCode(nextTaskCode(project.getCode()));
+        task.setCode(taskCode);
         task.setTitle(request.title().trim());
         task.setDescription(blankToNull(request.description()));
         task.setTaskType(request.taskType());
         task.setPriority(request.priority() == null || request.priority().isBlank() ? "MEDIUM" : request.priority());
-        task.setBranchName("fp/" + taskId);
+        task.setBranchName(workingBranch);
         task.setStatus("PENDING");
         task.setOwnerId(request.ownerId() == null || request.ownerId().isBlank() ? user.userId() : request.ownerId());
         task.setPredecessorTaskId(blankToNull(request.predecessorTaskId()));
         task.setDefectId("BUGFIX".equals(request.taskType()) ? blankToNull(request.defectId()) : null);
+        task.setModelProviderId(blankToNull(request.modelProviderId()));
+        task.setModelId(blankToNull(request.modelId()));
+        task.setAgentProfileId(blankToNull(request.agentProfileId()));
         task.setCreatedBy(user.userId());
         codingTaskMapper.insert(task);
 
         Instant frozenAt = Instant.now();
-        for (ProjectRepository repo : repos) {
+        List<ProjectRepository> selected = selectRepositories(repos, request.repositories());
+        for (ProjectRepository repo : selected) {
+            RepoCheckoutBinding binding = bindingFor(request.repositories(), repo.getId());
+            String source = resolveSourceBranch(binding, repo);
+            String repoWorking = binding != null && notBlank(binding.workingBranch())
+                    ? sanitizeBranch(binding.workingBranch())
+                    : workingBranch;
             TaskRepositoryFreeze freeze = new TaskRepositoryFreeze();
             freeze.setId(UUID.randomUUID().toString());
             freeze.setTaskId(taskId);
             freeze.setProjectRepositoryId(repo.getId());
-            freeze.setBaseBranch(
-                    repo.getDefaultBranch() == null || repo.getDefaultBranch().isBlank()
-                            ? "main"
-                            : repo.getDefaultBranch());
+            freeze.setBaseBranch(source);
+            freeze.setWorkingBranch(repoWorking);
             freeze.setDeliveryState("NONE");
             freeze.setFrozenAt(frozenAt);
             taskRepositoryFreezeMapper.insert(freeze);
@@ -265,6 +278,237 @@ public class TaskService {
         return get(user, task.getId());
     }
 
+
+    @Transactional
+    public TaskDetailView update(AuthUser user, String taskId, UpdateTaskRequest request) {
+        CodingTask task = requireTask(user, taskId);
+        if (TERMINAL.contains(task.getStatus()) || "WAITING_APPROVAL".equals(task.getStatus())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "当前任务状态不能修改配置");
+        }
+        if (request.title() != null && !request.title().isBlank()) {
+            task.setTitle(request.title().trim());
+        }
+        if (request.description() != null) {
+            task.setDescription(blankToNull(request.description()));
+        }
+        if (request.priority() != null && !request.priority().isBlank()) {
+            task.setPriority(request.priority());
+        }
+        if (request.predecessorTaskId() != null) {
+            String predecessor = blankToNull(request.predecessorTaskId());
+            if (predecessor != null) {
+                CodingTask parent = codingTaskMapper.selectById(predecessor);
+                if (parent == null || !task.getRequirementId().equals(parent.getRequirementId())) {
+                    throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "前置任务必须属于同一需求");
+                }
+            }
+            task.setPredecessorTaskId(predecessor);
+        }
+        if (request.modelProviderId() != null) {
+            task.setModelProviderId(blankToNull(request.modelProviderId()));
+        }
+        if (request.modelId() != null) {
+            task.setModelId(blankToNull(request.modelId()));
+        }
+        if (request.agentProfileId() != null) {
+            task.setAgentProfileId(blankToNull(request.agentProfileId()));
+        }
+        boolean canRewriteCheckout = "PENDING".equals(task.getStatus()) || "PREPARING".equals(task.getStatus());
+        if (request.workingBranch() != null && !request.workingBranch().isBlank()) {
+            if (!canRewriteCheckout) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "任务启动后不能再改工作分支名");
+            }
+            String working = sanitizeBranch(request.workingBranch());
+            task.setBranchName(working);
+        }
+        codingTaskMapper.updateById(task);
+        if (canRewriteCheckout && request.repositories() != null) {
+            rewriteCheckouts(task, request.repositories(), task.getBranchName());
+        } else if (canRewriteCheckout && request.workingBranch() != null && !request.workingBranch().isBlank()) {
+            List<TaskRepositoryFreeze> freezes = taskRepositoryFreezeMapper.selectList(
+                    new LambdaQueryWrapper<TaskRepositoryFreeze>().eq(TaskRepositoryFreeze::getTaskId, task.getId()));
+            for (TaskRepositoryFreeze freeze : freezes) {
+                freeze.setWorkingBranch(task.getBranchName());
+                taskRepositoryFreezeMapper.updateById(freeze);
+            }
+        }
+        recordHistory(task.getId(), task.getStatus(), task.getStatus(), "更新任务配置", user.userId());
+        return get(user, task.getId());
+    }
+
+    public TaskDefaultsView defaults(AuthUser user, String requirementId) {
+        Requirement requirement = requireRequirement(user, requirementId);
+        Project project = projectAccess.requireProjectMember(user, requirement.getProjectId());
+        String nextCode = nextTaskCode(project.getCode());
+        java.util.LinkedHashSet<String> taken = takenWorkingBranches(project.getId(), null);
+        String working = WorkingBranchNames.defaultName(requirement.getCode(), nextCode, taken);
+        List<ProjectRepository> repos = projectRepositoryMapper.selectList(new LambdaQueryWrapper<ProjectRepository>()
+                .eq(ProjectRepository::getProjectId, project.getId())
+                .orderByAsc(ProjectRepository::getLocalDirectoryName));
+        List<RepoDefaultView> repoViews = repos.stream()
+                .map(repo -> new RepoDefaultView(
+                        repo.getId(),
+                        repo.getDisplayName(),
+                        repo.getLocalDirectoryName(),
+                        repo.getCloneUrl(),
+                        repo.getProviderType(),
+                        repo.getDefaultBranch() == null || repo.getDefaultBranch().isBlank()
+                                ? "main"
+                                : repo.getDefaultBranch(),
+                        repo.getDefaultBranch() == null || repo.getDefaultBranch().isBlank()
+                                ? "main"
+                                : repo.getDefaultBranch(),
+                        working))
+                .toList();
+        return new TaskDefaultsView(working, taken.contains(WorkingBranchNames.fromRequirementCode(requirement.getCode())), nextCode, repoViews);
+    }
+
+    private void rewriteCheckouts(CodingTask task, List<RepoCheckoutBinding> bindings, String fallbackWorking) {
+        List<ProjectRepository> repos = projectRepositoryMapper.selectList(new LambdaQueryWrapper<ProjectRepository>()
+                .eq(ProjectRepository::getProjectId, task.getProjectId())
+                .orderByAsc(ProjectRepository::getLocalDirectoryName));
+        List<ProjectRepository> selected = selectRepositories(repos, bindings);
+        List<TaskRepositoryFreeze> existing = taskRepositoryFreezeMapper.selectList(
+                new LambdaQueryWrapper<TaskRepositoryFreeze>().eq(TaskRepositoryFreeze::getTaskId, task.getId()));
+        java.util.Map<String, TaskRepositoryFreeze> byRepo = existing.stream()
+                .collect(java.util.stream.Collectors.toMap(TaskRepositoryFreeze::getProjectRepositoryId, item -> item, (a, b) -> a));
+        Instant frozenAt = Instant.now();
+        java.util.Set<String> keep = new java.util.HashSet<>();
+        for (ProjectRepository repo : selected) {
+            RepoCheckoutBinding binding = bindingFor(bindings, repo.getId());
+            String source = resolveSourceBranch(binding, repo);
+            String repoWorking = binding != null && notBlank(binding.workingBranch())
+                    ? sanitizeBranch(binding.workingBranch())
+                    : fallbackWorking;
+            TaskRepositoryFreeze freeze = byRepo.get(repo.getId());
+            if (freeze == null) {
+                freeze = new TaskRepositoryFreeze();
+                freeze.setId(UUID.randomUUID().toString());
+                freeze.setTaskId(task.getId());
+                freeze.setProjectRepositoryId(repo.getId());
+                freeze.setDeliveryState("NONE");
+                freeze.setFrozenAt(frozenAt);
+                freeze.setBaseBranch(source);
+                freeze.setWorkingBranch(repoWorking);
+                taskRepositoryFreezeMapper.insert(freeze);
+            } else {
+                freeze.setBaseBranch(source);
+                freeze.setWorkingBranch(repoWorking);
+                taskRepositoryFreezeMapper.updateById(freeze);
+            }
+            keep.add(repo.getId());
+        }
+        for (TaskRepositoryFreeze freeze : existing) {
+            if (!keep.contains(freeze.getProjectRepositoryId()) && "NONE".equals(freeze.getDeliveryState())) {
+                taskRepositoryFreezeMapper.deleteById(freeze.getId());
+            }
+        }
+    }
+
+    private java.util.LinkedHashSet<String> takenWorkingBranches(String projectId, String excludeTaskId) {
+        java.util.LinkedHashSet<String> taken = new java.util.LinkedHashSet<>();
+        List<CodingTask> tasks = codingTaskMapper.selectList(new LambdaQueryWrapper<CodingTask>()
+                .eq(CodingTask::getProjectId, projectId)
+                .ne(CodingTask::getStatus, "CANCELLED"));
+        if (tasks == null) {
+            return taken;
+        }
+        for (CodingTask existing : tasks) {
+            if (excludeTaskId != null && excludeTaskId.equals(existing.getId())) {
+                continue;
+            }
+            if (notBlank(existing.getBranchName())) {
+                taken.add(existing.getBranchName());
+            }
+        }
+        if (tasks.isEmpty()) {
+            return taken;
+        }
+        List<String> ids = tasks.stream()
+                .map(CodingTask::getId)
+                .filter(id -> excludeTaskId == null || !excludeTaskId.equals(id))
+                .toList();
+        if (ids.isEmpty()) {
+            return taken;
+        }
+        List<TaskRepositoryFreeze> freezes = taskRepositoryFreezeMapper.selectList(
+                new LambdaQueryWrapper<TaskRepositoryFreeze>().in(TaskRepositoryFreeze::getTaskId, ids));
+        if (freezes != null) {
+            for (TaskRepositoryFreeze freeze : freezes) {
+                if (notBlank(freeze.getWorkingBranch())) {
+                    taken.add(freeze.getWorkingBranch());
+                }
+            }
+        }
+        return taken;
+    }
+
+    private static String resolveWorkingBranch(
+            String requested, String requirementCode, String taskCode, java.util.Set<String> taken) {
+        if (notBlank(requested)) {
+            return sanitizeBranch(requested);
+        }
+        return WorkingBranchNames.defaultName(requirementCode, taskCode, taken);
+    }
+
+    private static String resolveSourceBranch(RepoCheckoutBinding binding, ProjectRepository repo) {
+        if (binding != null && notBlank(binding.sourceBranch())) {
+            return sanitizeBranch(binding.sourceBranch());
+        }
+        if (repo.getDefaultBranch() == null || repo.getDefaultBranch().isBlank()) {
+            return "main";
+        }
+        return repo.getDefaultBranch();
+    }
+
+    private static String sanitizeBranch(String raw) {
+        try {
+            return WorkingBranchNames.sanitizeFull(raw);
+        } catch (IllegalArgumentException ex) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, ex.getMessage());
+        }
+    }
+
+    private static boolean notBlank(String value) {
+        return value != null && !value.isBlank();
+    }
+
+    private static RepoCheckoutBinding bindingFor(List<RepoCheckoutBinding> bindings, String repoId) {
+        if (bindings == null) {
+            return null;
+        }
+        for (RepoCheckoutBinding binding : bindings) {
+            if (binding != null && repoId.equals(binding.projectRepositoryId())) {
+                return binding;
+            }
+        }
+        return null;
+    }
+
+    private static List<ProjectRepository> selectRepositories(
+            List<ProjectRepository> repos, List<RepoCheckoutBinding> bindings) {
+        if (bindings == null || bindings.isEmpty()) {
+            return repos;
+        }
+        java.util.Map<String, ProjectRepository> byId = repos.stream()
+                .collect(java.util.stream.Collectors.toMap(ProjectRepository::getId, item -> item, (a, b) -> a));
+        List<ProjectRepository> selected = new java.util.ArrayList<>();
+        for (RepoCheckoutBinding binding : bindings) {
+            if (binding == null || binding.projectRepositoryId() == null) {
+                continue;
+            }
+            ProjectRepository repo = byId.get(binding.projectRepositoryId());
+            if (repo == null) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "只能选择当前项目已关联的仓库");
+            }
+            selected.add(repo);
+        }
+        if (selected.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "至少选择一个仓库");
+        }
+        return selected;
+    }
+
     private CodingTask requireTask(AuthUser user, String taskId) {
         CodingTask task = codingTaskMapper.selectById(taskId);
         if (task == null) {
@@ -306,7 +550,12 @@ public class TaskService {
                             repo == null ? null : repo.getDisplayName(),
                             repo == null ? null : repo.getLocalDirectoryName(),
                             repo == null ? null : repo.getCloneUrl(),
+                            repo == null ? null : repo.getProviderType(),
+                            repo == null ? null : repo.getDefaultBranch(),
                             freeze.getBaseBranch(),
+                            freeze.getWorkingBranch() == null || freeze.getWorkingBranch().isBlank()
+                                    ? null
+                                    : freeze.getWorkingBranch(),
                             freeze.getDeliveryState());
                 })
                 .toList();
@@ -377,10 +626,12 @@ public class TaskService {
     }
 
     private TaskView toView(CodingTask task, String projectName, List<FrozenRepoView> frozen) {
+        Requirement requirement = requirementMapper.selectById(task.getRequirementId());
         return new TaskView(
                 task.getId(),
                 task.getCode(),
                 task.getRequirementId(),
+                requirement == null ? null : requirement.getCode(),
                 task.getProjectId(),
                 projectName,
                 task.getTitle(),
@@ -389,6 +640,9 @@ public class TaskService {
                 task.getPriority(),
                 task.getStatus(),
                 task.getBranchName(),
+                task.getModelProviderId(),
+                task.getModelId(),
+                task.getAgentProfileId(),
                 task.getCreatedBy(),
                 task.getOwnerId(),
                 task.getPredecessorTaskId(),
@@ -415,6 +669,7 @@ public class TaskService {
             String id,
             String code,
             String requirementId,
+            String requirementCode,
             String projectId,
             String projectName,
             String title,
@@ -423,6 +678,9 @@ public class TaskService {
             String priority,
             String status,
             String branchName,
+            String modelProviderId,
+            String modelId,
+            String agentProfileId,
             String createdBy,
             String ownerId,
             String predecessorTaskId,
@@ -436,7 +694,10 @@ public class TaskService {
             String displayName,
             String localDirectoryName,
             String cloneUrl,
+            String providerType,
+            String defaultBranch,
             String baseBranch,
+            String workingBranch,
             String deliveryState) {
     }
 
@@ -467,5 +728,18 @@ public class TaskService {
             String testFileChangeHook,
             UnsupportedActions unsupported) {
     }
+
+    public record RepoDefaultView(
+            String projectRepositoryId,
+            String displayName,
+            String localDirectoryName,
+            String cloneUrl,
+            String providerType,
+            String defaultBranch,
+            String sourceBranch,
+            String workingBranch) {}
+
+    public record TaskDefaultsView(
+            String workingBranch, boolean requirementBranchTaken, String nextTaskCode, List<RepoDefaultView> repositories) {}
 }
 

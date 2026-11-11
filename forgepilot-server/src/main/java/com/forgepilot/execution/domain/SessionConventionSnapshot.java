@@ -19,5 +19,10 @@ public class SessionConventionSnapshot {
     private String scope;
     private String title;
     private String contentHash;
+    private String kind;
+    private String sourceRef;
+    private String body;
+    private Boolean included;
+    private Integer sortOrder;
     private Instant createdAt;
 }

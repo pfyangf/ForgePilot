@@ -64,6 +64,11 @@ public class RoutingGitHostingAdapter implements GitHostingPort {
     }
 
     @Override
+    public MergeResult mergeBranch(MergeBranch command) {
+        return adapterFor(command.repository()).mergeBranch(command);
+    }
+
+    @Override
     public MergeRequestView getMergeRequest(MergeRequestRef ref) {
         throw new UnsupportedOperationException("getMergeRequest 需要完整 RepositoryRef，请使用对应适配器的重载方法");
     }

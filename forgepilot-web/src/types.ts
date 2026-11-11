@@ -20,6 +20,7 @@ export interface SuggestedTask {
 
 export interface WorkRequirement {
   id: string
+  code?: string
   title: string
   status: RequirementStatus | string
   projectId?: string
@@ -45,12 +46,18 @@ export interface DraftMr {
   directoryName: string
   url: string
   headSha: string
+  externalId?: string
+  branchName?: string
+  state?: string
 }
 
 export interface WorkTask {
   id: string
+  code?: string
   requirementId: string
+  requirementCode?: string
   title: string
+  description?: string
   taskType?: string
   defectId?: string | null
   status: TaskStatus | string
@@ -62,7 +69,9 @@ export interface WorkTask {
   projectName: string
   branchName: string
   providerName: string
+  modelProviderId?: string
   modelId: string
+  agentProfileId?: string
   agentLabel: string
   interactiveInput: boolean
   nativePause: boolean
@@ -77,8 +86,13 @@ export interface WorkTask {
   verificationExitCode: number | null
   evidenceNote: string
   frozenRepositories?: Array<{
+    projectRepositoryId?: string
     directoryName: string
+    displayName?: string
+    providerType?: string
+    defaultBranch?: string
     baseBranch: string
+    workingBranch?: string
     deliveryState: string
     cloneUrl: string
   }>

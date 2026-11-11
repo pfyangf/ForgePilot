@@ -8,7 +8,7 @@ public interface ModelProviderPort {
 
     ModelProviderView get(String providerId);
 
-    void complete(PlatformModelRequest request);
+    String complete(PlatformModelRequest request);
 
     record PlatformModelRequest(String providerId, String modelId, String prompt) {
     }

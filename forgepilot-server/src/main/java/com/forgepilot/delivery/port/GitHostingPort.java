@@ -23,6 +23,14 @@ public interface GitHostingPort {
 
     MergeRequestView getMergeRequest(MergeRequestRef ref);
 
+    /**
+     * 把源分支合并进目标分支。发布时使用；代码审核通过不会调用。
+     * 默认实现抛出未支持，便于测试替身不必全部改写。
+     */
+    default MergeResult mergeBranch(MergeBranch command) {
+        throw new UnsupportedOperationException("当前适配器不支持合并分支");
+    }
+
     record RepositoryRef(String repositoryId, String providerType, String externalId, String cloneUrl) {
     }
 
@@ -60,4 +68,14 @@ public interface GitHostingPort {
             String idempotencyKey,
             String state) {
     }
+
+    record MergeBranch(
+            RepositoryRef repository, String sourceBranch, String targetBranch, String commitMessage) {}
+
+    record MergeResult(
+            String sourceBranch,
+            String targetBranch,
+            String mergeSha,
+            boolean alreadyMerged,
+            String message) {}
 }

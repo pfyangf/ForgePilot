@@ -9,8 +9,16 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.forgepilot.delivery.port.GitHostingPort;
 import com.forgepilot.execution.domain.CodingTask;
+import com.forgepilot.execution.domain.TaskRepositoryFreeze;
 import com.forgepilot.execution.persistence.CodingTaskMapper;
+import com.forgepilot.execution.persistence.TaskRepositoryFreezeMapper;
+import com.forgepilot.project.domain.ProjectRepository;
+import com.forgepilot.project.domain.RequirementReleaseTarget;
+import com.forgepilot.project.persistence.RequirementReleaseTargetMapper;
+import com.forgepilot.project.service.RepositoryBranchService;
+import com.forgepilot.project.web.CreateReleaseRequest.ReleaseTargetRequest;
 import com.forgepilot.project.domain.Defect;
 import com.forgepilot.project.domain.Project;
 import com.forgepilot.project.domain.Requirement;
@@ -59,6 +67,9 @@ class RequirementLifecycleServiceTest {
     private final RequirementReleaseMapper releaseMapper = mock(RequirementReleaseMapper.class);
     private final RequirementReleaseItemMapper releaseItemMapper = mock(RequirementReleaseItemMapper.class);
     private final CodingTaskMapper codingTaskMapper = mock(CodingTaskMapper.class);
+    private final TaskRepositoryFreezeMapper freezeMapper = mock(TaskRepositoryFreezeMapper.class);
+    private final RequirementReleaseTargetMapper releaseTargetMapper = mock(RequirementReleaseTargetMapper.class);
+    private final GitHostingPort gitHostingPort = mock(GitHostingPort.class);
     private final ActivityLogRecorder recorder = mock(ActivityLogRecorder.class);
     private RequirementLifecycleService service;
 
@@ -75,8 +86,15 @@ class RequirementLifecycleServiceTest {
                 releaseMapper,
                 releaseItemMapper,
                 codingTaskMapper,
+                freezeMapper,
+                releaseTargetMapper,
+                gitHostingPort,
+                new RepositoryBranchService(new ProjectAccess(projectMapper, projectMemberMapper), projectRepositoryMapper, gitHostingPort),
                 new ProjectAccess(projectMapper, projectMemberMapper),
                 recorder);
+        when(codingTaskMapper.selectList(any(LambdaQueryWrapper.class))).thenReturn(List.of());
+        when(freezeMapper.selectList(any(LambdaQueryWrapper.class))).thenReturn(List.of());
+        when(releaseTargetMapper.selectList(any(LambdaQueryWrapper.class))).thenReturn(List.of());
         when(projectMemberMapper.findProjectIdsByUserId(USER)).thenReturn(List.of(PROJECT));
         when(projectMapper.selectById(PROJECT)).thenReturn(project());
         when(requirementMapper.selectById(REQ)).thenReturn(requirement("待需求评审"));
@@ -235,6 +253,98 @@ class RequirementLifecycleServiceTest {
         assertThatThrownBy(() -> service.requireDefectForBugfix(REQ, null))
                 .isInstanceOf(ResponseStatusException.class)
                 .hasMessageContaining("必须关联缺陷");
+    }
+
+
+    @Test
+    void releaseRequiresTargetBranchAndRecordsMerge() {
+        when(requirementMapper.selectById(REQ)).thenReturn(requirement("已完成"));
+        when(releaseMapper.selectCount(any(LambdaQueryWrapper.class))).thenReturn(0L);
+        when(releaseMapper.insert(any(RequirementRelease.class))).thenReturn(1);
+        when(releaseItemMapper.insert(any(RequirementReleaseItem.class))).thenReturn(1);
+        when(releaseTargetMapper.insert(any(RequirementReleaseTarget.class))).thenReturn(1);
+        CodingTask task = new CodingTask();
+        task.setId("t1");
+        task.setRequirementId(REQ);
+        task.setCode("TASK-PAY-1");
+        task.setBranchName("fp/REQ-PAY-1");
+        task.setStatus("COMPLETED");
+        when(codingTaskMapper.selectList(any(LambdaQueryWrapper.class))).thenReturn(List.of(task));
+        TaskRepositoryFreeze freeze = new TaskRepositoryFreeze();
+        freeze.setTaskId("t1");
+        freeze.setProjectRepositoryId("repo-1");
+        freeze.setWorkingBranch("fp/REQ-PAY-1");
+        freeze.setDeliveryState("MR_OPEN");
+        when(freezeMapper.selectList(any(LambdaQueryWrapper.class))).thenReturn(List.of(freeze));
+        ProjectRepository repo = new ProjectRepository();
+        repo.setId("repo-1");
+        repo.setProjectId(PROJECT);
+        repo.setDisplayName("demo");
+        repo.setLocalDirectoryName("demo");
+        repo.setCloneUrl("https://github.com/example/demo.git");
+        repo.setProviderType("GITHUB");
+        repo.setDefaultBranch("main");
+        when(projectRepositoryMapper.selectById("repo-1")).thenReturn(repo);
+        when(gitHostingPort.mergeBranch(any())).thenReturn(
+                new GitHostingPort.MergeResult("fp/REQ-PAY-1", "main", "abc123", false, "已合并"));
+
+        assertThatThrownBy(() -> service.createRelease(
+                        user(), PROJECT, new CreateReleaseRequest("1.0.0", "notes", List.of(REQ))))
+                .isInstanceOf(ResponseStatusException.class)
+                .hasMessageContaining("目标分支");
+
+        var release = service.createRelease(
+                user(),
+                PROJECT,
+                new CreateReleaseRequest(
+                        "1.0.0",
+                        "notes",
+                        List.of(REQ),
+                        List.of(new ReleaseTargetRequest("repo-1", "main"))));
+        assertThat(release.version()).isEqualTo("1.0.0");
+        assertThat(release.targets()).extracting(item -> item.targetBranch()).containsExactly("main");
+        assertThat(release.targets()).extracting(item -> item.sourceBranch()).containsExactly("fp/REQ-PAY-1");
+        assertThat(release.targets()).extracting(item -> item.mergeSha()).containsExactly("abc123");
+        org.mockito.Mockito.verify(requirementMapper, org.mockito.Mockito.atLeastOnce()).updateById(any(Requirement.class));
+    }
+
+    @Test
+    void releaseDoesNotMarkPublishedWhenMergeFails() {
+        when(requirementMapper.selectById(REQ)).thenReturn(requirement("已完成"));
+        when(releaseMapper.selectCount(any(LambdaQueryWrapper.class))).thenReturn(0L);
+        CodingTask task = new CodingTask();
+        task.setId("t1");
+        task.setRequirementId(REQ);
+        task.setCode("TASK-PAY-1");
+        task.setBranchName("fp/REQ-PAY-1");
+        task.setStatus("COMPLETED");
+        when(codingTaskMapper.selectList(any(LambdaQueryWrapper.class))).thenReturn(List.of(task));
+        TaskRepositoryFreeze freeze = new TaskRepositoryFreeze();
+        freeze.setTaskId("t1");
+        freeze.setProjectRepositoryId("repo-1");
+        freeze.setWorkingBranch("fp/REQ-PAY-1");
+        freeze.setDeliveryState("PUSHED");
+        when(freezeMapper.selectList(any(LambdaQueryWrapper.class))).thenReturn(List.of(freeze));
+        ProjectRepository repo = new ProjectRepository();
+        repo.setId("repo-1");
+        repo.setProjectId(PROJECT);
+        repo.setCloneUrl("https://github.com/example/demo.git");
+        repo.setProviderType("GITHUB");
+        when(projectRepositoryMapper.selectById("repo-1")).thenReturn(repo);
+        when(gitHostingPort.mergeBranch(any())).thenThrow(new IllegalStateException("GitHub 合并冲突：无法将 fp/REQ-PAY-1 合并进 main"));
+
+        assertThatThrownBy(() -> service.createRelease(
+                        user(),
+                        PROJECT,
+                        new CreateReleaseRequest(
+                                "1.0.0",
+                                null,
+                                List.of(REQ),
+                                List.of(new ReleaseTargetRequest("repo-1", "main")))))
+                .isInstanceOf(ResponseStatusException.class)
+                .hasMessageContaining("尚未标记为已发布")
+                .hasMessageContaining("合并冲突");
+        org.mockito.Mockito.verify(releaseMapper, org.mockito.Mockito.never()).insert(any(RequirementRelease.class));
     }
 
     private AuthUser user() {

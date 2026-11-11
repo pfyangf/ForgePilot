@@ -15,6 +15,7 @@ interface WorkbenchCounts {
 
 interface ApiRequirement {
   id: string
+  code?: string
   title: string
   status: string
   projectId: string
@@ -29,8 +30,11 @@ interface ApiRequirement {
 
 interface ApiTask {
   id: string
+  code?: string
   requirementId: string
+  requirementCode?: string
   title: string
+  description?: string
   taskType?: string
   defectId?: string | null
   status: string
@@ -41,6 +45,9 @@ interface ApiTask {
   projectName: string
   branchName: string
   agentLabel: string
+  modelProviderId?: string
+  modelId?: string
+  agentProfileId?: string
   interactiveInput: boolean
   interrupted: boolean
 }
@@ -59,9 +66,12 @@ interface RequirementDetailResponse {
   confirmedBy: string | null
   tasks: Array<{
     id: string
+    code?: string
     requirementId: string
+    requirementCode?: string
     title: string
     status: string
+    taskType?: string
     projectId: string
     projectName: string
     branchName: string
@@ -74,15 +84,22 @@ interface RequirementDetailResponse {
 interface TaskDetailResponse {
   task: {
     id: string
+    code?: string
     requirementId: string
+    requirementCode?: string
     title: string
     status: string
+    taskType?: string
+    defectId?: string | null
     projectId: string
     projectName: string
     branchName: string
     createdBy: string
     ownerId: string
     description?: string
+    modelProviderId?: string
+    modelId?: string
+    agentProfileId?: string
     frozenRepoCount: number
   }
   frozenRepositories: Array<{
@@ -91,7 +108,10 @@ interface TaskDetailResponse {
     displayName: string | null
     localDirectoryName: string | null
     cloneUrl: string | null
+    providerType?: string
+    defaultBranch?: string
     baseBranch: string
+    workingBranch?: string
     deliveryState: string
   }>
   mergeRequests?: Array<{
@@ -118,6 +138,7 @@ interface TaskDetailResponse {
 function toRequirement(item: ApiRequirement): WorkRequirement {
   return {
     id: item.id,
+    code: item.code,
     title: item.title,
     status: item.status,
     projectId: item.projectId,
@@ -135,8 +156,11 @@ function toRequirement(item: ApiRequirement): WorkRequirement {
 function toTask(item: ApiTask): WorkTask {
   return {
     id: item.id,
+    code: item.code,
     requirementId: item.requirementId,
+    requirementCode: item.requirementCode,
     title: item.title,
+    description: item.description || '',
     taskType: item.taskType,
     defectId: item.defectId,
     status: item.status,
@@ -148,7 +172,9 @@ function toTask(item: ApiTask): WorkTask {
     projectName: item.projectName,
     branchName: item.branchName || '',
     providerName: '项目默认',
-    modelId: '',
+    modelProviderId: item.modelProviderId,
+    modelId: item.modelId || '',
+    agentProfileId: item.agentProfileId,
     agentLabel: item.agentLabel || 'Codex CLI',
     interactiveInput: item.interactiveInput,
     nativePause: false,
@@ -191,9 +217,104 @@ export const useWorkbenchStore = defineStore('workbench', () => {
     waitingUser: 0,
   })
   const retryNote = ref('')
+  const searchQuery = ref('')
+  const selectedStat = ref<string>('')
+  const waitingActionCount = ref(0)
 
   const visibleRequirements = computed(() => requirements.value)
   const visibleTasks = computed(() => tasks.value)
+
+  function matchesQuery(parts: Array<string | undefined | null>) {
+    const query = searchQuery.value.trim().toLowerCase()
+    if (!query) return true
+    return parts.some((part) => (part || '').toLowerCase().includes(query))
+  }
+
+  const inboxItems = computed(() => {
+    const items: Array<{
+      kind: 'requirement' | 'task'
+      id: string
+      code: string
+      title: string
+      summary: string
+      action: '去验收' | '去审核' | '去处理'
+    }> = []
+    for (const requirement of requirements.value) {
+      if (requirement.status === '待验收') {
+        items.push({
+          kind: 'requirement',
+          id: requirement.id,
+          code: requirement.code || '',
+          title: requirement.title,
+          summary: `${requirement.projectName} · ${requirement.status}`,
+          action: '去验收',
+        })
+      }
+    }
+    for (const task of tasks.value) {
+      if (task.status === 'WAITING_APPROVAL') {
+        items.push({
+          kind: 'task',
+          id: task.id,
+          code: task.code || '',
+          title: task.title,
+          summary: `${task.projectName}${task.requirementCode ? ' · 关联 ' + task.requirementCode : ''} · ${task.agentLabel || ''}`,
+          action: '去审核',
+        })
+      } else if (task.status === 'WAITING_USER') {
+        items.push({
+          kind: 'task',
+          id: task.id,
+          code: task.code || '',
+          title: task.title,
+          summary: `${task.projectName}${task.requirementCode ? ' · 关联 ' + task.requirementCode : ''} · 等待处理`,
+          action: '去处理',
+        })
+      }
+    }
+    if (scope.value === 'waiting') {
+      for (const requirement of requirements.value) {
+        if (['待分析', '待需求评审', '设计中', '待设计评审', '待开发'].includes(String(requirement.status))) {
+          items.push({
+            kind: 'requirement',
+            id: requirement.id,
+            code: requirement.code || '',
+            title: requirement.title,
+            summary: `${requirement.projectName} · ${requirement.status}`,
+            action: '去处理',
+          })
+        }
+      }
+    }
+    return items
+  })
+
+  const filteredRequirements = computed(() => {
+    const list = requirements.value.filter((item) =>
+      matchesQuery([item.code, item.title, item.projectName, item.status]),
+    )
+    if (!selectedStat.value || selectedStat.value === 'requirements') return list
+    if (selectedStat.value === 'tasks') return []
+    const related = new Set(
+      filteredTaskRows().map((item) => item.requirementId),
+    )
+    return list.filter((item) => related.has(item.id))
+  })
+
+  function filteredTaskRows() {
+    const list = tasks.value.filter((item) =>
+      matchesQuery([item.code, item.title, item.projectName, item.status, item.requirementCode, item.agentLabel]),
+    )
+    if (!selectedStat.value || selectedStat.value === 'tasks') return list
+    if (selectedStat.value === 'requirements') return []
+    if (selectedStat.value === 'running') return list.filter((item) => item.status === 'RUNNING')
+    if (selectedStat.value === 'verifying') return list.filter((item) => item.status === 'VERIFYING')
+    if (selectedStat.value === 'approval') return list.filter((item) => item.status === 'WAITING_APPROVAL')
+    if (selectedStat.value === 'waitingUser') return list.filter((item) => item.status === 'WAITING_USER')
+    return list
+  }
+
+  const filteredTasks = computed(() => filteredTaskRows())
 
   async function load(nextScope: 'mine' | 'member' | 'waiting' = scope.value) {
     scope.value = nextScope
@@ -204,6 +325,13 @@ export const useWorkbenchStore = defineStore('workbench', () => {
       requirements.value = snapshot.requirements.map(toRequirement)
       tasks.value = snapshot.tasks.map(toTask)
       counts.value = snapshot.counts
+      if (nextScope === 'waiting') {
+        waitingActionCount.value =
+          snapshot.requirements.filter((item) =>
+            ['待分析', '待需求评审', '设计中', '待设计评审', '待开发', '待验收'].includes(item.status),
+          ).length +
+          snapshot.tasks.filter((item) => ['WAITING_APPROVAL', 'WAITING_USER'].includes(item.status)).length
+      }
     } catch (err) {
       error.value = err instanceof Error ? err.message : '加载工作台失败'
       requirements.value = []
@@ -256,8 +384,11 @@ export const useWorkbenchStore = defineStore('workbench', () => {
         tasks.value.push(
           toTask({
             id: task.id,
+            code: task.code,
             requirementId: task.requirementId,
+            requirementCode: task.requirementCode,
             title: task.title,
+            taskType: task.taskType,
             status: task.status,
             sessionStatus: null,
             createdBy: task.createdBy,
@@ -280,8 +411,13 @@ export const useWorkbenchStore = defineStore('workbench', () => {
     const detail = await apiFetch<TaskDetailResponse>(`/api/v1/tasks/${id}`)
     const mapped = toTask({
       id: detail.task.id,
+      code: detail.task.code,
       requirementId: detail.task.requirementId,
+      requirementCode: detail.task.requirementCode,
       title: detail.task.title,
+      description: detail.task.description,
+      taskType: detail.task.taskType,
+      defectId: detail.task.defectId,
       status: detail.task.status,
       sessionStatus: null,
       createdBy: detail.task.createdBy,
@@ -290,12 +426,20 @@ export const useWorkbenchStore = defineStore('workbench', () => {
       projectName: detail.task.projectName,
       branchName: detail.task.branchName,
       agentLabel: 'Codex CLI',
+      modelProviderId: detail.task.modelProviderId,
+      modelId: detail.task.modelId,
+      agentProfileId: detail.task.agentProfileId,
       interactiveInput: false,
       interrupted: false,
     })
     mapped.frozenRepositories = detail.frozenRepositories.map((repo) => ({
+      projectRepositoryId: repo.projectRepositoryId,
       directoryName: repo.localDirectoryName || repo.displayName || repo.projectRepositoryId,
+      displayName: repo.displayName || repo.localDirectoryName || '',
+      providerType: repo.providerType,
+      defaultBranch: repo.defaultBranch,
       baseBranch: repo.baseBranch,
+      workingBranch: repo.workingBranch,
       deliveryState: repo.deliveryState,
       cloneUrl: repo.cloneUrl || '',
     }))
@@ -588,6 +732,12 @@ export const useWorkbenchStore = defineStore('workbench', () => {
     retryNote,
     visibleRequirements,
     visibleTasks,
+    filteredRequirements,
+    filteredTasks,
+    inboxItems,
+    searchQuery,
+    selectedStat,
+    waitingActionCount,
     counts,
     currentUserId: computed(() => auth.user?.userId ?? ''),
     load,

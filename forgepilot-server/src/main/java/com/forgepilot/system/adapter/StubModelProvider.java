@@ -1,9 +1,7 @@
 package com.forgepilot.system.adapter;
 
 import com.forgepilot.system.port.ModelProviderPort;
-import org.springframework.stereotype.Component;
 
-@Component
 public class StubModelProvider implements ModelProviderPort {
 
     @Override
@@ -12,7 +10,7 @@ public class StubModelProvider implements ModelProviderPort {
     }
 
     @Override
-    public void complete(PlatformModelRequest request) {
+    public String complete(PlatformModelRequest request) {
         throw unsupported();
     }
 

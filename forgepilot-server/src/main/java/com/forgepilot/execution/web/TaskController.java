@@ -2,6 +2,8 @@ package com.forgepilot.execution.web;
 
 import com.forgepilot.delivery.service.TaskVerifyDeliveryService;
 import com.forgepilot.delivery.service.TaskVerifyDeliveryService.VerifyDeliveryResult;
+import com.forgepilot.execution.service.TaskDocumentPackService;
+import com.forgepilot.execution.service.TaskDocumentPackService.DocumentPackView;
 import com.forgepilot.execution.service.TaskService;
 import com.forgepilot.execution.service.TaskService.TaskDetailView;
 import com.forgepilot.execution.service.TaskSessionService;
@@ -10,9 +12,11 @@ import com.forgepilot.execution.service.TaskSessionService.SessionView;
 import com.forgepilot.system.security.AuthContext;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.RestController;
@@ -25,19 +29,33 @@ public class TaskController {
     private final TaskService taskService;
     private final TaskVerifyDeliveryService verifyDeliveryService;
     private final TaskSessionService taskSessionService;
+    private final TaskDocumentPackService documentPackService;
 
     public TaskController(
             TaskService taskService,
             TaskVerifyDeliveryService verifyDeliveryService,
-            TaskSessionService taskSessionService) {
+            TaskSessionService taskSessionService,
+            TaskDocumentPackService documentPackService) {
         this.taskService = taskService;
         this.verifyDeliveryService = verifyDeliveryService;
         this.taskSessionService = taskSessionService;
+        this.documentPackService = documentPackService;
     }
 
     @GetMapping("/{taskId}")
     public TaskDetailView get(@PathVariable String taskId) {
         return taskService.get(AuthContext.require(), taskId);
+    }
+
+    @PatchMapping("/{taskId}")
+    public TaskDetailView update(@PathVariable String taskId, @Valid @RequestBody UpdateTaskRequest request) {
+        return taskService.update(AuthContext.require(), taskId, request);
+    }
+
+    @GetMapping("/{taskId}/document-pack")
+    public DocumentPackView documentPack(
+            @PathVariable String taskId, @RequestParam(required = false) String sessionId) {
+        return documentPackService.frozenOrPreview(AuthContext.require(), taskId, sessionId);
     }
 
     @PostMapping("/{taskId}/start")

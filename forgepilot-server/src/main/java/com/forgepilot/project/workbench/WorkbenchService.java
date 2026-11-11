@@ -93,8 +93,11 @@ public class WorkbenchService {
             }
             visibleTasks.add(new WorkbenchTaskItem(
                     task.getId(),
+                    task.getCode(),
                     task.getRequirementId(),
+                    parent.getCode(),
                     task.getTitle(),
+                    task.getTaskType(),
                     task.getStatus(),
                     sessionStatus,
                     task.getCreatedBy(),
@@ -135,6 +138,7 @@ public class WorkbenchService {
             int[] counts = progress.getOrDefault(requirement.getId(), new int[] {0, 0});
             visibleRequirements.add(new WorkbenchRequirementItem(
                     requirement.getId(),
+                    requirement.getCode(),
                     requirement.getTitle(),
                     requirement.getStatus(),
                     requirement.getProjectId(),

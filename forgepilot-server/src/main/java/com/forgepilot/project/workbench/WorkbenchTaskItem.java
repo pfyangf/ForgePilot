@@ -2,8 +2,11 @@ package com.forgepilot.project.workbench;
 
 public record WorkbenchTaskItem(
         String id,
+        String code,
         String requirementId,
+        String requirementCode,
         String title,
+        String taskType,
         String status,
         String sessionStatus,
         String createdBy,

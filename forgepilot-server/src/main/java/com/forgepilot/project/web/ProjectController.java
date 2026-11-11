@@ -6,7 +6,10 @@ import com.forgepilot.project.service.ProjectService.ProjectView;
 import com.forgepilot.project.service.ProjectService.RepositoryView;
 import com.forgepilot.project.service.ProjectService.UpdateDefaultsRequest;
 import com.forgepilot.project.lifecycle.RequirementLifecycleService;
+import com.forgepilot.project.lifecycle.RequirementLifecycleService.ReleasePlanView;
 import com.forgepilot.project.lifecycle.RequirementLifecycleService.ReleaseView;
+import com.forgepilot.project.service.RepositoryBranchService;
+import com.forgepilot.project.service.RepositoryBranchService.BranchListView;
 import com.forgepilot.project.service.RequirementService;
 import com.forgepilot.project.service.RequirementService.RequirementView;
 import com.forgepilot.system.security.AuthContext;
@@ -17,6 +20,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -27,14 +31,17 @@ public class ProjectController {
     private final ProjectService projectService;
     private final RequirementService requirementService;
     private final RequirementLifecycleService lifecycleService;
+    private final RepositoryBranchService repositoryBranchService;
 
     public ProjectController(
             ProjectService projectService,
             RequirementService requirementService,
-            RequirementLifecycleService lifecycleService) {
+            RequirementLifecycleService lifecycleService,
+            RepositoryBranchService repositoryBranchService) {
         this.projectService = projectService;
         this.requirementService = requirementService;
         this.lifecycleService = lifecycleService;
+        this.repositoryBranchService = repositoryBranchService;
     }
 
     @GetMapping
@@ -62,6 +69,18 @@ public class ProjectController {
     @GetMapping("/{projectId}/repositories")
     public List<RepositoryView> repositories(@PathVariable String projectId) {
         return projectService.listRepositories(AuthContext.require(), projectId);
+    }
+
+    @GetMapping("/{projectId}/repositories/{repositoryId}/branches")
+    public BranchListView repositoryBranches(
+            @PathVariable String projectId, @PathVariable String repositoryId) {
+        return repositoryBranchService.list(AuthContext.require(), projectId, repositoryId);
+    }
+
+    @GetMapping("/{projectId}/release-plan")
+    public ReleasePlanView releasePlan(
+            @PathVariable String projectId, @RequestParam List<String> requirementIds) {
+        return lifecycleService.releasePlan(AuthContext.require(), projectId, requirementIds);
     }
 
     @PostMapping("/{projectId}/repositories")

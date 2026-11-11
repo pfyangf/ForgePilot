@@ -3,6 +3,14 @@ package com.forgepilot.project.lifecycle;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.forgepilot.execution.domain.CodingTask;
 import com.forgepilot.execution.persistence.CodingTaskMapper;
+import com.forgepilot.delivery.port.GitHostingPort;
+import com.forgepilot.delivery.service.TaskVerifyDeliveryService;
+import com.forgepilot.execution.domain.TaskRepositoryFreeze;
+import com.forgepilot.execution.persistence.TaskRepositoryFreezeMapper;
+import com.forgepilot.project.domain.RequirementReleaseTarget;
+import com.forgepilot.project.persistence.RequirementReleaseTargetMapper;
+import com.forgepilot.project.service.RepositoryBranchService;
+import com.forgepilot.project.web.CreateReleaseRequest.ReleaseTargetRequest;
 import com.forgepilot.project.domain.AnalysisDraft;
 import com.forgepilot.project.domain.Defect;
 import com.forgepilot.project.domain.Project;
@@ -35,6 +43,7 @@ import com.forgepilot.project.web.UpdateRequirementStatusRequest;
 import com.forgepilot.system.activity.ActivityLogRecorder;
 import com.forgepilot.system.auth.AuthUser;
 import java.time.Instant;
+import java.util.Comparator;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -57,6 +66,10 @@ public class RequirementLifecycleService {
     private final RequirementReleaseMapper releaseMapper;
     private final RequirementReleaseItemMapper releaseItemMapper;
     private final CodingTaskMapper codingTaskMapper;
+    private final TaskRepositoryFreezeMapper freezeMapper;
+    private final RequirementReleaseTargetMapper releaseTargetMapper;
+    private final GitHostingPort gitHostingPort;
+    private final RepositoryBranchService repositoryBranchService;
     private final ProjectAccess projectAccess;
     private final ActivityLogRecorder activityLogRecorder;
 
@@ -71,6 +84,10 @@ public class RequirementLifecycleService {
             RequirementReleaseMapper releaseMapper,
             RequirementReleaseItemMapper releaseItemMapper,
             CodingTaskMapper codingTaskMapper,
+            TaskRepositoryFreezeMapper freezeMapper,
+            RequirementReleaseTargetMapper releaseTargetMapper,
+            GitHostingPort gitHostingPort,
+            RepositoryBranchService repositoryBranchService,
             ProjectAccess projectAccess,
             ActivityLogRecorder activityLogRecorder) {
         this.requirementMapper = requirementMapper;
@@ -83,6 +100,10 @@ public class RequirementLifecycleService {
         this.releaseMapper = releaseMapper;
         this.releaseItemMapper = releaseItemMapper;
         this.codingTaskMapper = codingTaskMapper;
+        this.freezeMapper = freezeMapper;
+        this.releaseTargetMapper = releaseTargetMapper;
+        this.gitHostingPort = gitHostingPort;
+        this.repositoryBranchService = repositoryBranchService;
         this.projectAccess = projectAccess;
         this.activityLogRecorder = activityLogRecorder;
     }
@@ -413,6 +434,8 @@ public class RequirementLifecycleService {
         if (existing != null && existing > 0) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "该版本号已经发布过");
         }
+        List<MergeJob> jobs = collectMergeJobs(requirementIds);
+        List<PerformedMerge> merges = mergeForRelease(projectId, version, jobs, request.targets());
         RequirementRelease release = new RequirementRelease();
         release.setId(UUID.randomUUID().toString());
         release.setProjectId(projectId);
@@ -431,6 +454,19 @@ public class RequirementLifecycleService {
             requirement.setStatusLocked(true);
             requirementMapper.updateById(requirement);
         }
+        for (PerformedMerge merge : merges) {
+            RequirementReleaseTarget target = new RequirementReleaseTarget();
+            target.setId(UUID.randomUUID().toString());
+            target.setReleaseId(release.getId());
+            target.setProjectRepositoryId(merge.projectRepositoryId());
+            target.setSourceBranch(merge.sourceBranch());
+            target.setTargetBranch(merge.targetBranch());
+            target.setMergeSha(merge.mergeSha());
+            target.setStatus(merge.alreadyMerged() ? "ALREADY_MERGED" : "MERGED");
+            target.setMessage(merge.message());
+            target.setCreatedAt(Instant.now());
+            releaseTargetMapper.insert(target);
+        }
         activityLogRecorder.record(
                 user.tenantId(),
                 "USER",
@@ -442,16 +478,68 @@ public class RequirementLifecycleService {
                 requirements.get(0).getId(),
                 null,
                 null,
-                "发布 " + version + "，包含 " + requirements.size() + " 条需求",
+                "发布 " + version + "，包含 " + requirements.size() + " 条需求，合并 " + merges.size() + " 个分支",
                 Map.of(
                         "version",
                         version,
                         "requirementIds",
                         requirementIds,
                         "notes",
-                        nullToEmpty(request.notes())),
+                        nullToEmpty(request.notes()),
+                        "targets",
+                        merges.stream()
+                                .map(item -> Map.of(
+                                        "projectRepositoryId",
+                                        item.projectRepositoryId(),
+                                        "sourceBranch",
+                                        item.sourceBranch(),
+                                        "targetBranch",
+                                        item.targetBranch(),
+                                        "status",
+                                        item.alreadyMerged() ? "ALREADY_MERGED" : "MERGED"))
+                                .toList()),
                 "SUCCESS");
-        return toReleaseView(release, requirements);
+        return toReleaseView(release, requirements, merges);
+    }
+
+
+    public ReleasePlanView releasePlan(AuthUser user, String projectId, List<String> requirementIds) {
+        projectAccess.requireProjectMember(user, projectId);
+        List<String> ids = requirementIds == null
+                ? List.of()
+                : requirementIds.stream().filter(id -> id != null && !id.isBlank()).distinct().toList();
+        if (ids.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "请选择要发布的需求");
+        }
+        for (String requirementId : ids) {
+            Requirement requirement = requirementMapper.selectById(requirementId);
+            if (requirement == null || !projectId.equals(requirement.getProjectId())) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "发布只能关联本项目的需求");
+            }
+        }
+        List<MergeJob> jobs = collectMergeJobs(ids);
+        Map<String, List<String>> sources = new java.util.LinkedHashMap<>();
+        for (MergeJob job : jobs) {
+            sources.computeIfAbsent(job.projectRepositoryId(), key -> new ArrayList<>()).add(job.sourceBranch());
+        }
+        List<ReleaseRepoPlan> plans = new ArrayList<>();
+        for (Map.Entry<String, List<String>> entry : sources.entrySet()) {
+            ProjectRepository repo = projectRepositoryMapper.selectById(entry.getKey());
+            if (repo == null) {
+                continue;
+            }
+            var branches = repositoryBranchService.list(repo);
+            plans.add(new ReleaseRepoPlan(
+                    repo.getId(),
+                    repo.getDisplayName(),
+                    repo.getLocalDirectoryName(),
+                    repo.getCloneUrl(),
+                    branches.defaultBranch(),
+                    entry.getValue(),
+                    branches.branches().stream().map(RepositoryBranchService.BranchItem::name).toList(),
+                    branches.error()));
+        }
+        return new ReleasePlanView(plans);
     }
 
     public List<ReleaseView> listReleases(AuthUser user, String projectId) {
@@ -788,6 +876,11 @@ public class RequirementLifecycleService {
     }
 
     private ReleaseView toReleaseView(RequirementRelease release, List<Requirement> requirements) {
+        return toReleaseView(release, requirements, loadPerformed(release.getId()));
+    }
+
+    private ReleaseView toReleaseView(
+            RequirementRelease release, List<Requirement> requirements, List<PerformedMerge> merges) {
         return new ReleaseView(
                 release.getId(),
                 release.getProjectId(),
@@ -796,8 +889,145 @@ public class RequirementLifecycleService {
                 release.getReleasedBy(),
                 release.getReleasedAt(),
                 requirements.stream().map(Requirement::getId).toList(),
-                requirements.stream().map(Requirement::getCode).toList());
+                requirements.stream().map(Requirement::getCode).toList(),
+                merges.stream()
+                        .map(item -> new ReleaseTargetView(
+                                item.projectRepositoryId(),
+                                item.sourceBranch(),
+                                item.targetBranch(),
+                                item.mergeSha(),
+                                item.alreadyMerged() ? "ALREADY_MERGED" : item.status(),
+                                item.message()))
+                        .toList());
     }
+
+    private List<PerformedMerge> loadPerformed(String releaseId) {
+        if (releaseTargetMapper == null) {
+            return List.of();
+        }
+        List<RequirementReleaseTarget> rows = releaseTargetMapper.selectList(
+                new LambdaQueryWrapper<RequirementReleaseTarget>()
+                        .eq(RequirementReleaseTarget::getReleaseId, releaseId));
+        if (rows == null) {
+            return List.of();
+        }
+        return rows.stream()
+                .map(row -> new PerformedMerge(
+                        row.getProjectRepositoryId(),
+                        row.getSourceBranch(),
+                        row.getTargetBranch(),
+                        row.getMergeSha() == null ? "" : row.getMergeSha(),
+                        "ALREADY_MERGED".equals(row.getStatus()),
+                        row.getStatus() == null ? "MERGED" : row.getStatus(),
+                        row.getMessage() == null ? "" : row.getMessage()))
+                .toList();
+    }
+
+    private List<MergeJob> collectMergeJobs(List<String> requirementIds) {
+        List<CodingTask> tasks = codingTaskMapper.selectList(new LambdaQueryWrapper<CodingTask>()
+                .in(CodingTask::getRequirementId, requirementIds)
+                .ne(CodingTask::getStatus, "CANCELLED"));
+        if (tasks == null || tasks.isEmpty()) {
+            return List.of();
+        }
+        tasks = new ArrayList<>(tasks);
+        tasks.sort(Comparator.comparing(task -> task.getCode() == null ? task.getId() : task.getCode()));
+        List<String> taskIds = tasks.stream().map(CodingTask::getId).toList();
+        List<TaskRepositoryFreeze> freezes = freezeMapper.selectList(
+                new LambdaQueryWrapper<TaskRepositoryFreeze>().in(TaskRepositoryFreeze::getTaskId, taskIds));
+        if (freezes == null || freezes.isEmpty()) {
+            return List.of();
+        }
+        java.util.Map<String, CodingTask> taskById = tasks.stream()
+                .collect(java.util.stream.Collectors.toMap(CodingTask::getId, item -> item, (a, b) -> a));
+        List<MergeJob> jobs = new ArrayList<>();
+        java.util.Set<String> seen = new java.util.LinkedHashSet<>();
+        for (CodingTask task : tasks) {
+            for (TaskRepositoryFreeze freeze : freezes) {
+                if (!task.getId().equals(freeze.getTaskId())) {
+                    continue;
+                }
+                if (!"PUSHED".equals(freeze.getDeliveryState()) && !"MR_OPEN".equals(freeze.getDeliveryState())) {
+                    continue;
+                }
+                String source = TaskVerifyDeliveryService.workingBranch(taskById.get(task.getId()), freeze);
+                String key = freeze.getProjectRepositoryId() + "|" + source;
+                if (seen.add(key)) {
+                    jobs.add(new MergeJob(freeze.getProjectRepositoryId(), source));
+                }
+            }
+        }
+        return jobs;
+    }
+
+    private List<PerformedMerge> mergeForRelease(
+            String projectId, String version, List<MergeJob> jobs, List<ReleaseTargetRequest> targets) {
+        if (jobs.isEmpty()) {
+            return List.of();
+        }
+        java.util.Map<String, String> targetByRepo = new java.util.LinkedHashMap<>();
+        if (targets != null) {
+            for (ReleaseTargetRequest target : targets) {
+                if (target == null || target.projectRepositoryId() == null || target.projectRepositoryId().isBlank()) {
+                    continue;
+                }
+                if (target.targetBranch() == null || target.targetBranch().isBlank()) {
+                    throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "发布必须选择要合并的目标分支");
+                }
+                targetByRepo.put(target.projectRepositoryId(), target.targetBranch().trim());
+            }
+        }
+        for (MergeJob job : jobs) {
+            if (!targetByRepo.containsKey(job.projectRepositoryId())) {
+                throw new ResponseStatusException(
+                        HttpStatus.BAD_REQUEST, "发布必须为每个待合并仓库选择目标分支，缺少：" + job.projectRepositoryId());
+            }
+        }
+        List<PerformedMerge> performed = new ArrayList<>();
+        for (MergeJob job : jobs) {
+            String targetBranch = targetByRepo.get(job.projectRepositoryId());
+            ProjectRepository repo = projectRepositoryMapper.selectById(job.projectRepositoryId());
+            if (repo == null || !projectId.equals(repo.getProjectId())) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "目标仓库不属于当前项目");
+            }
+            try {
+                var result = gitHostingPort.mergeBranch(new GitHostingPort.MergeBranch(
+                        RepositoryBranchService.toRef(repo),
+                        job.sourceBranch(),
+                        targetBranch,
+                        "ForgePilot 发布 " + version + "：合并 " + job.sourceBranch() + " 到 " + targetBranch));
+                performed.add(new PerformedMerge(
+                        job.projectRepositoryId(),
+                        job.sourceBranch(),
+                        targetBranch,
+                        result.mergeSha() == null ? "" : result.mergeSha(),
+                        result.alreadyMerged(),
+                        result.alreadyMerged() ? "ALREADY_MERGED" : "MERGED",
+                        result.message() == null ? "" : result.message()));
+            } catch (RuntimeException ex) {
+                String succeeded = performed.isEmpty()
+                        ? "无"
+                        : performed.stream()
+                                .map(item -> item.sourceBranch() + " → " + item.targetBranch())
+                                .reduce((a, b) -> a + "；" + b)
+                                .orElse("无");
+                String message = ex.getMessage() == null ? ex.getClass().getSimpleName() : ex.getMessage();
+                throw new ResponseStatusException(
+                        HttpStatus.BAD_REQUEST,
+                        "发布合并失败，需求尚未标记为已发布。已成功合并："
+                                + succeeded
+                                + "。失败："
+                                + job.sourceBranch()
+                                + " → "
+                                + targetBranch
+                                + "（"
+                                + message
+                                + "）");
+            }
+        }
+        return performed;
+    }
+
 
     private String nextDefectCode(String projectCode) {
         String prefix = "DEF-" + projectCode.toUpperCase() + "-";
@@ -960,7 +1190,39 @@ public class RequirementLifecycleService {
             String releasedBy,
             Instant releasedAt,
             List<String> requirementIds,
-            List<String> requirementCodes) {}
+            List<String> requirementCodes,
+            List<ReleaseTargetView> targets) {}
+
+    public record ReleaseTargetView(
+            String projectRepositoryId,
+            String sourceBranch,
+            String targetBranch,
+            String mergeSha,
+            String status,
+            String message) {}
+
+    public record ReleaseRepoPlan(
+            String projectRepositoryId,
+            String displayName,
+            String localDirectoryName,
+            String cloneUrl,
+            String defaultTargetBranch,
+            List<String> sourceBranches,
+            List<String> remoteBranches,
+            String branchesError) {}
+
+    public record ReleasePlanView(List<ReleaseRepoPlan> repositories) {}
+
+    private record MergeJob(String projectRepositoryId, String sourceBranch) {}
+
+    private record PerformedMerge(
+            String projectRepositoryId,
+            String sourceBranch,
+            String targetBranch,
+            String mergeSha,
+            boolean alreadyMerged,
+            String status,
+            String message) {}
 
     public record GateView(
             boolean requirementReviewApproved,

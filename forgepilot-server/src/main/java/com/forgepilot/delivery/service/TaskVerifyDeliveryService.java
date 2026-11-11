@@ -272,9 +272,6 @@ public class TaskVerifyDeliveryService {
     }
 
     private DeliveryOutcome deliverChangedRepos(AuthUser user, CodingTask task, PreparedWorkspace workspace) {
-        String branch = task.getBranchName() == null || task.getBranchName().isBlank()
-                ? "fp/" + task.getId()
-                : task.getBranchName();
         List<MrSummary> mrs = new ArrayList<>();
         List<String> testChanges = new ArrayList<>();
         List<String> failures = new ArrayList<>();
@@ -288,6 +285,7 @@ public class TaskVerifyDeliveryService {
             if (freeze != null && freeze.getBaseSha() != null && !freeze.getBaseSha().isBlank()) {
                 baseSha = freeze.getBaseSha();
             }
+            String branch = workingBranch(task, freeze);
 
             // 若工作区有未提交改动，先提交到平台分支（本机开发路径；真实 Agent 会话会自己改文件）
             git.checkoutBranch(checkout.path(), branch);
@@ -475,7 +473,7 @@ public class TaskVerifyDeliveryService {
                         "testFileChanges",
                         testChanges,
                         "branchName",
-                        branch),
+                        task.getBranchName()),
                 failures.isEmpty() ? "SUCCESS" : "FAILURE");
         outboxService.enqueue(
                 "DELIVERY_RESULT",
@@ -593,6 +591,17 @@ public class TaskVerifyDeliveryService {
             return "";
         }
         return output.length() <= 2000 ? output : output.substring(0, 2000);
+    }
+
+
+    public static String workingBranch(CodingTask task, TaskRepositoryFreeze freeze) {
+        if (freeze != null && freeze.getWorkingBranch() != null && !freeze.getWorkingBranch().isBlank()) {
+            return freeze.getWorkingBranch();
+        }
+        if (task.getBranchName() != null && !task.getBranchName().isBlank()) {
+            return task.getBranchName();
+        }
+        return "fp/" + task.getId();
     }
 
     private record DeliveryOutcome(

@@ -182,6 +182,45 @@ public class GitHubGitHostingAdapter implements GitHostingPort {
                 state);
     }
 
+
+    @Override
+    public MergeResult mergeBranch(MergeBranch command) {
+        requireToken("合并 GitHub 分支需要配置 FORGEPILOT_GITHUB_TOKEN");
+        RepositoryRef ref = command.repository();
+        if (command.sourceBranch() == null || command.sourceBranch().isBlank()) {
+            throw new IllegalStateException("缺少源分支，无法合并");
+        }
+        if (command.targetBranch() == null || command.targetBranch().isBlank()) {
+            throw new IllegalStateException("缺少目标分支，无法合并");
+        }
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("base", command.targetBranch());
+        body.put("head", command.sourceBranch());
+        if (command.commitMessage() != null && !command.commitMessage().isBlank()) {
+            body.put("commit_message", command.commitMessage());
+        }
+        GitHubApiClient.Response response =
+                exchange(ref, "POST", repoApi(ref) + "/merges", writeJson(body), Map.of());
+        if (response.statusCode() == 204) {
+            return new MergeResult(
+                    command.sourceBranch(), command.targetBranch(), "", true, "目标分支已包含源分支");
+        }
+        if (response.statusCode() == 409) {
+            throw new IllegalStateException(
+                    "GitHub 合并冲突：无法将 " + command.sourceBranch() + " 合并进 " + command.targetBranch());
+        }
+        if (response.statusCode() == 404) {
+            throw new IllegalStateException(
+                    "GitHub 找不到分支 " + command.sourceBranch() + " 或 " + command.targetBranch());
+        }
+        if (!response.is2xx()) {
+            throw new IllegalStateException("GitHub 合并失败: HTTP " + response.statusCode());
+        }
+        JsonNode json = readTree(response.body());
+        String sha = text(json, "sha");
+        return new MergeResult(command.sourceBranch(), command.targetBranch(), sha, false, "已合并");
+    }
+
     private String requireToken(String message) {
         String token = tokenSupplier.get();
         if (token == null || token.isBlank()) {

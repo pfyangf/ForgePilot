@@ -21,6 +21,7 @@ public class TaskRepositoryFreeze {
     private String taskId;
     private String projectRepositoryId;
     private String baseBranch;
+    private String workingBranch;
     private String baseSha;
     private String deliveryState;
     private Instant frozenAt;

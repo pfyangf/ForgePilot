@@ -59,6 +59,19 @@ class CoreSchemaMigrationTest {
         assertThat(sql).contains("alter table task add column defect_id");
     }
 
+    @Test
+    void documentPackAndBranchMigrationAddsWorkingBranchAndReleaseTarget() throws IOException {
+        String sql = new String(
+                new ClassPathResource("db/migration/V11__document_pack_and_branches.sql").getContentAsByteArray(),
+                StandardCharsets.UTF_8);
+        assertThat(sql).contains("working_branch");
+        assertThat(sql).contains("session_convention_snapshot");
+        assertThat(sql).contains("add column if not exists body text");
+        assertThat(sql).contains("create table if not exists requirement_release_target");
+        assertThat(sql).contains("target_branch");
+        assertThat(sql).contains("'MERGED', 'ALREADY_MERGED'");
+    }
+
     private static String table(String sql, String name, String next) {
         String start = "create table " + name + " (";
         int from = sql.indexOf(start);

@@ -191,6 +191,66 @@ public class GitLabGitHostingAdapter implements GitHostingPort {
                 state);
     }
 
+
+    @Override
+    public MergeResult mergeBranch(MergeBranch command) {
+        requireToken("合并 GitLab 分支需要配置 FORGEPILOT_GITLAB_TOKEN");
+        RepositoryRef ref = command.repository();
+        if (command.sourceBranch() == null || command.sourceBranch().isBlank()) {
+            throw new IllegalStateException("缺少源分支，无法合并");
+        }
+        if (command.targetBranch() == null || command.targetBranch().isBlank()) {
+            throw new IllegalStateException("缺少目标分支，无法合并");
+        }
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("source_branch", command.sourceBranch());
+        body.put("target_branch", command.targetBranch());
+        if (command.commitMessage() != null && !command.commitMessage().isBlank()) {
+            body.put("commit_message", command.commitMessage());
+        }
+        GitLabApiClient.Response response = exchange(
+                ref,
+                "POST",
+                "/api/v4/projects/" + projectPath(ref) + "/repository/merges",
+                writeJson(body),
+                Map.of());
+        if (response.statusCode() == 204 || response.statusCode() == 201) {
+            JsonNode json = readTree(response.body() == null || response.body().isBlank() ? "{}" : response.body());
+            String sha = text(json, "id");
+            if (sha.isBlank()) {
+                sha = text(json.path("commit"), "id");
+            }
+            boolean already = sha.isBlank() && response.statusCode() == 204;
+            return new MergeResult(
+                    command.sourceBranch(),
+                    command.targetBranch(),
+                    sha,
+                    already,
+                    already ? "目标分支已包含源分支" : "已合并");
+        }
+        if (response.statusCode() == 400 || response.statusCode() == 409 || response.statusCode() == 422) {
+            String detail = response.body() == null ? "" : response.body();
+            if (detail.toLowerCase(Locale.ROOT).contains("already")
+                    || detail.contains("Nothing to merge")
+                    || detail.contains("already merged")) {
+                return new MergeResult(
+                        command.sourceBranch(), command.targetBranch(), "", true, "目标分支已包含源分支");
+            }
+            throw new IllegalStateException(
+                    "GitLab 无法将 "
+                            + command.sourceBranch()
+                            + " 合并进 "
+                            + command.targetBranch()
+                            + "：HTTP "
+                            + response.statusCode());
+        }
+        if (response.statusCode() == 404) {
+            throw new IllegalStateException(
+                    "GitLab 找不到分支 " + command.sourceBranch() + " 或 " + command.targetBranch());
+        }
+        throw new IllegalStateException("GitLab 合并失败: HTTP " + response.statusCode());
+    }
+
     private String requireToken(String message) {
         String token = tokenSupplier.get();
         if (token == null || token.isBlank()) {

@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.nullable;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -34,7 +35,6 @@ import com.forgepilot.execution.web.TaskActionRequest;
 import com.forgepilot.project.domain.Project;
 import com.forgepilot.project.domain.ProjectRepository;
 import com.forgepilot.project.persistence.ProjectMapper;
-import com.forgepilot.project.persistence.RequirementMapper;
 import com.forgepilot.project.persistence.ProjectMemberMapper;
 import com.forgepilot.project.persistence.ProjectRepositoryMapper;
 import com.forgepilot.project.lifecycle.RequirementLifecycleService;
@@ -48,6 +48,8 @@ import com.forgepilot.system.auth.AuthUser;
 import com.forgepilot.system.domain.ModelProvider;
 import com.forgepilot.system.persistence.IntegrationSecretMapper;
 import com.forgepilot.system.persistence.ModelProviderMapper;
+import com.forgepilot.execution.service.TaskDocumentPackService.DocumentPack;
+import com.forgepilot.execution.service.TaskDocumentPackService.PackItem;
 import com.forgepilot.system.service.GuidanceService;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -78,6 +80,7 @@ class TaskSessionServiceTest {
     private final ModelProviderMapper modelProviderMapper = mock(ModelProviderMapper.class);
     private final IntegrationSecretMapper integrationSecretMapper = mock(IntegrationSecretMapper.class);
     private final GuidanceService guidanceService = mock(GuidanceService.class);
+    private final TaskDocumentPackService documentPackService = mock(TaskDocumentPackService.class);
     private final AgentRuntimePort agentRuntimePort = mock(AgentRuntimePort.class);
     private final ActivityLogRecorder recorder = mock(ActivityLogRecorder.class);
     private final ExecutionNodeMapper executionNodeMapper = mock(ExecutionNodeMapper.class);
@@ -116,7 +119,7 @@ class TaskSessionServiceTest {
                 new InMemorySessionLogStream(),
                 new OutboxService(mock(OutboxMapper.class), new ObjectMapper(), new InMemoryControlEventPublisher()),
                 new InMemoryGitCredentialService(900),
-                mock(RequirementMapper.class),
+                documentPackService,
                 mock(RequirementLifecycleService.class),
                 temp.resolve("storage").toString());
         when(executionNodeMapper.selectList(any(LambdaQueryWrapper.class))).thenReturn(List.of());
@@ -168,6 +171,18 @@ class TaskSessionServiceTest {
         provider.setSecretId(null);
         when(modelProviderMapper.selectById("prov1")).thenReturn(provider);
 
+        when(documentPackService.assemble(any(), any(CodingTask.class)))
+                .thenReturn(new DocumentPack(List.of(new PackItem(
+                        TaskDocumentPackService.TASK_BRIEF,
+                        "任务说明",
+                        "本页编码说明",
+                        "TASK-PAY-1",
+                        "完成任务",
+                        true,
+                        1,
+                        null))));
+        when(documentPackService.toPrompt(any(), nullable(String.class), nullable(String.class)))
+                .thenReturn("打包后的任务文档，不要另起分支名");
         when(guidanceService.snapshotForProject(any(), anyString()))
                 .thenReturn(new GuidanceService.CompositionSnapshotView(
                         "snap1",

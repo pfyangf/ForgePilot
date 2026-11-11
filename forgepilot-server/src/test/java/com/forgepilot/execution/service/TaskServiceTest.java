@@ -96,12 +96,15 @@ class TaskServiceTest {
                 user, REQUIREMENT, new CreateTaskRequest("导出字段", "desc", "IMPLEMENT", "HIGH", USER, null));
 
         assertThat(view.status()).isEqualTo("PENDING");
-        assertThat(view.branchName()).startsWith("fp/");
+        assertThat(view.branchName()).isEqualTo("fp/REQ-PAY-1");
         ArgumentCaptor<TaskRepositoryFreeze> freeze = ArgumentCaptor.forClass(TaskRepositoryFreeze.class);
         verify(freezeMapper, times(2)).insert(freeze.capture());
         assertThat(freeze.getAllValues())
                 .extracting(TaskRepositoryFreeze::getBaseBranch)
                 .containsExactlyInAnyOrder("main", "develop");
+        assertThat(freeze.getAllValues())
+                .extracting(TaskRepositoryFreeze::getWorkingBranch)
+                .containsOnly("fp/REQ-PAY-1");
         verify(activityLogRecorder)
                 .record(eq(TENANT), eq("USER"), eq(USER), eq("TASK_CREATE"), eq("TASK"), any(), eq(PROJECT), eq(REQUIREMENT), any(), any(), any(), any(), eq("SUCCESS"));
     }
@@ -158,6 +161,22 @@ class TaskServiceTest {
         return new AuthUser(USER, USER, USER, TENANT, List.of("MEMBER"), List.of("projects"));
     }
 
+
+    @Test
+    void defaultWorkingBranchAddsTaskCodeWhenRequirementBranchTaken() {
+        CodingTask existing = task("other", "PENDING");
+        existing.setBranchName("fp/REQ-PAY-1");
+        when(codingTaskMapper.selectCount(any(LambdaQueryWrapper.class))).thenReturn(1L);
+        when(codingTaskMapper.selectList(any(LambdaQueryWrapper.class))).thenReturn(List.of(existing));
+        TaskService.TaskView view = service.create(
+                user(), REQUIREMENT, new CreateTaskRequest("第二项", null, "IMPLEMENT", "MEDIUM", null, null));
+        assertThat(view.branchName()).isEqualTo("fp/REQ-PAY-1-TASK-PAY-2");
+        ArgumentCaptor<TaskRepositoryFreeze> freeze = ArgumentCaptor.forClass(TaskRepositoryFreeze.class);
+        verify(freezeMapper, org.mockito.Mockito.atLeast(2)).insert(freeze.capture());
+        assertThat(freeze.getAllValues().stream().map(TaskRepositoryFreeze::getWorkingBranch).distinct().toList())
+                .contains("fp/REQ-PAY-1-TASK-PAY-2");
+    }
+
     private Project project() {
         Project project = new Project();
         project.setId(PROJECT);
@@ -174,6 +193,7 @@ class TaskServiceTest {
         requirement.setProjectId(PROJECT);
         requirement.setStatus("待开发");
         requirement.setTitle("需求");
+        requirement.setCode("REQ-PAY-1");
         return requirement;
     }
 
