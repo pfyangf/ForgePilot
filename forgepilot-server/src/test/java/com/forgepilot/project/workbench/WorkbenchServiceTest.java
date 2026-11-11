@@ -16,6 +16,7 @@ import com.forgepilot.project.domain.Requirement;
 import com.forgepilot.project.persistence.ProjectMapper;
 import com.forgepilot.project.persistence.ProjectMemberMapper;
 import com.forgepilot.project.persistence.RequirementMapper;
+import com.forgepilot.project.pmo.PmoProposalService;
 import com.forgepilot.system.auth.AuthUser;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
@@ -35,12 +36,19 @@ class WorkbenchServiceTest {
     private final RequirementMapper requirementMapper = mock(RequirementMapper.class);
     private final CodingTaskMapper codingTaskMapper = mock(CodingTaskMapper.class);
     private final AgentSessionMapper agentSessionMapper = mock(AgentSessionMapper.class);
+    private final PmoProposalService pmoProposalService = mock(PmoProposalService.class);
     private WorkbenchService service;
 
     @BeforeEach
     void setUp() {
         service = new WorkbenchService(
-                projectMapper, projectMemberMapper, requirementMapper, codingTaskMapper, agentSessionMapper);
+                projectMapper,
+                projectMemberMapper,
+                requirementMapper,
+                codingTaskMapper,
+                agentSessionMapper,
+                pmoProposalService);
+        when(pmoProposalService.listOpenTaskDrafts(any(), any(), any(), any())).thenReturn(List.of());
         when(projectMemberMapper.findProjectIdsByUserId(USER_A)).thenReturn(List.of(PROJECT_A));
         when(projectMapper.selectList(any(LambdaQueryWrapper.class))).thenReturn(List.of(project(PROJECT_A, TENANT_A, "支付")));
         when(requirementMapper.selectList(any(LambdaQueryWrapper.class))).thenReturn(List.of(
@@ -77,6 +85,30 @@ class WorkbenchServiceTest {
         assertThat(member.requirements()).extracting(WorkbenchRequirementItem::id).containsExactlyInAnyOrder("r-mine", "r-design", "r-other");
         assertThat(member.tasks()).extracting(WorkbenchTaskItem::id).containsExactlyInAnyOrder("t-wait", "t-peer");
         assertThat(member.tasks()).extracting(WorkbenchTaskItem::id).doesNotContain("t-foreign");
+    }
+
+    @Test
+    void waitingScopeIncludesOpenTaskDraftsForMyRequirements() {
+        WorkbenchProposalItem draft = new WorkbenchProposalItem(
+                "prop-1",
+                "CREATE_TASK",
+                "IMPLEMENT",
+                null,
+                "实现：支付",
+                "平台建议创建实现任务",
+                "确认创建",
+                true,
+                "r-mine",
+                "REQ-1",
+                "我的需求",
+                PROJECT_A,
+                "支付");
+        when(pmoProposalService.listOpenTaskDrafts(any(), any(), any(), any())).thenReturn(List.of(draft));
+        AuthUser user = new AuthUser(USER_A, "demo_member", "演示成员", TENANT_A, List.of("MEMBER"), List.of("dashboard"));
+
+        WorkbenchSnapshot waiting = service.load(user, WorkbenchScope.WAITING);
+        assertThat(waiting.proposals()).extracting(WorkbenchProposalItem::proposalId).containsExactly("prop-1");
+        assertThat(waiting.proposals()).extracting(WorkbenchProposalItem::confirmCreatesTask).containsExactly(true);
     }
 
     @Test

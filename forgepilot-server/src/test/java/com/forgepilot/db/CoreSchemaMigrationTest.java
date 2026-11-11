@@ -72,6 +72,21 @@ class CoreSchemaMigrationTest {
         assertThat(sql).contains("'MERGED', 'ALREADY_MERGED'");
     }
 
+
+    @Test
+    void pmoProposalDecisionMigrationPersistsConfirmAndReturn() throws IOException {
+        String sql = new String(
+                new ClassPathResource("db/migration/V12__pmo_proposal_decision.sql").getContentAsByteArray(),
+                StandardCharsets.UTF_8);
+        assertThat(sql).contains("create table if not exists pmo_proposal_decision");
+        assertThat(sql).contains("proposal_id varchar(64) not null");
+        assertThat(sql).contains("fingerprint text not null");
+        assertThat(sql).contains("'CONFIRMED', 'RETURNED'");
+        assertThat(sql).contains("'CREATE_TASK'");
+        assertThat(sql).contains("created_task_id uuid references task (id)");
+        assertThat(sql).contains("unique (requirement_id, proposal_id)");
+    }
+
     private static String table(String sql, String name, String next) {
         String start = "create table " + name + " (";
         int from = sql.indexOf(start);

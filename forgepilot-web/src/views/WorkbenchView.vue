@@ -109,11 +109,20 @@
             <div class="fp-inbox__title">
               <span>{{ item.title }}</span>
               <span v-if="item.code" class="fp-code-chip" :class="codeClass(item)">{{ item.code }}</span>
+              <span v-if="item.kind === 'proposal'" class="fp-status-tag">平台建议</span>
             </div>
             <div class="fp-inbox__summary">{{ item.summary }}</div>
           </div>
           <div class="fp-inbox__actions">
-            <el-button :type="item.action === '去处理' ? 'default' : item.action === '去验收' ? 'warning' : 'primary'" @click="openInbox(item)">
+            <template v-if="item.kind === 'proposal'">
+              <el-button :loading="actingId === item.id + '-return'" @click="returnInbox(item)">退回</el-button>
+              <el-button type="primary" :loading="actingId === item.id + '-confirm'" @click="confirmInbox(item)">确认</el-button>
+            </template>
+            <el-button
+              v-else
+              :type="item.action === '去处理' ? 'default' : item.action === '去验收' ? 'warning' : 'primary'"
+              @click="openInbox(item)"
+            >
               {{ item.action }}
             </el-button>
           </div>
@@ -198,9 +207,10 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { CircleCheck, Plus, Refresh, Search, Stamp, VideoPlay, Warning } from '@element-plus/icons-vue'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import BranchPill from '@/components/BranchPill.vue'
 import MiniFlow from '@/components/MiniFlow.vue'
 import { isInProgressRequirement } from '@/domain/pipeline'
@@ -212,6 +222,7 @@ import type { WorkRequirement, WorkTask } from '@/types'
 const store = useWorkbenchStore()
 const auth = useAuthStore()
 const router = useRouter()
+const actingId = ref('')
 
 const headingCount = computed(() => store.waitingActionCount || store.inboxItems.length)
 
@@ -294,11 +305,13 @@ function isCurrentCard(row: WorkRequirement) {
 function inboxIcon(action: string) {
   if (action === '去验收') return CircleCheck
   if (action === '去审核') return Stamp
+  if (action === '确认创建') return CircleCheck
   return Warning
 }
 
 function inboxTone(action: string) {
   if (action === '去验收') return 'is-warning'
+  if (action === '确认创建') return 'is-warning'
   if (action === '去审核') return ''
   return ''
 }
@@ -317,12 +330,56 @@ function openTask(row: { id: string }) {
   router.push(`/tasks/${row.id}`)
 }
 
-function openInbox(item: { kind: string; id: string }) {
+function openInbox(item: { kind: string; id: string; requirementId?: string }) {
   if (item.kind === 'task') {
     router.push(`/tasks/${item.id}`)
     return
   }
+  if (item.kind === 'proposal') {
+    router.push(`/requirements/${item.requirementId}`)
+    return
+  }
   router.push(`/requirements/${item.id}`)
+}
+
+async function confirmInbox(item: { id: string; requirementId?: string; proposalId?: string; title: string }) {
+  if (!item.requirementId || !item.proposalId) return
+  actingId.value = item.id + '-confirm'
+  try {
+    await store.confirmProposal(
+      { proposalId: item.proposalId, requirementId: item.requirementId, title: item.title },
+      item.title,
+    )
+    ElMessage.success('已按平台建议创建任务，不会自动启动编码')
+  } catch (err) {
+    ElMessage.error(err instanceof Error ? err.message : '确认失败')
+  } finally {
+    actingId.value = ''
+  }
+}
+
+async function returnInbox(item: { id: string; requirementId?: string; proposalId?: string }) {
+  if (!item.requirementId || !item.proposalId) return
+  try {
+    const { value } = await ElMessageBox.prompt(
+      '退回后，在情况变化之前不会再出现这条建议。可填写原因（可选）。',
+      '退回平台建议',
+      {
+        confirmButtonText: '退回',
+        cancelButtonText: '取消',
+        inputPlaceholder: '退回原因（可选）',
+        inputValue: '',
+      },
+    )
+    actingId.value = item.id + '-return'
+    await store.returnProposal({ proposalId: item.proposalId, requirementId: item.requirementId }, value || '')
+    ElMessage.success('已退回平台建议')
+  } catch (err) {
+    if (err === 'cancel' || err === 'close') return
+    ElMessage.error(err instanceof Error ? err.message : '退回失败')
+  } finally {
+    actingId.value = ''
+  }
 }
 
 function toggleStat(key: string) {

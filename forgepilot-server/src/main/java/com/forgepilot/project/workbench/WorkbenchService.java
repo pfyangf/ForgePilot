@@ -10,6 +10,7 @@ import com.forgepilot.project.domain.Requirement;
 import com.forgepilot.project.persistence.ProjectMapper;
 import com.forgepilot.project.persistence.ProjectMemberMapper;
 import com.forgepilot.project.persistence.RequirementMapper;
+import com.forgepilot.project.pmo.PmoProposalService;
 import com.forgepilot.system.auth.AuthUser;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -30,18 +31,21 @@ public class WorkbenchService {
     private final RequirementMapper requirementMapper;
     private final CodingTaskMapper codingTaskMapper;
     private final AgentSessionMapper agentSessionMapper;
+    private final PmoProposalService pmoProposalService;
 
     public WorkbenchService(
             ProjectMapper projectMapper,
             ProjectMemberMapper projectMemberMapper,
             RequirementMapper requirementMapper,
             CodingTaskMapper codingTaskMapper,
-            AgentSessionMapper agentSessionMapper) {
+            AgentSessionMapper agentSessionMapper,
+            PmoProposalService pmoProposalService) {
         this.projectMapper = projectMapper;
         this.projectMemberMapper = projectMemberMapper;
         this.requirementMapper = requirementMapper;
         this.codingTaskMapper = codingTaskMapper;
         this.agentSessionMapper = agentSessionMapper;
+        this.pmoProposalService = pmoProposalService;
     }
 
     public WorkbenchSnapshot load(AuthUser user, WorkbenchScope scope) {
@@ -151,11 +155,31 @@ public class WorkbenchService {
                     counts[1]));
         }
 
+        List<WorkbenchProposalItem> proposals = pmoProposalService.listOpenTaskDrafts(
+                requirements,
+                projectById,
+                tasks,
+                requirement -> {
+                    Project project = projectById.get(requirement.getProjectId());
+                    if (project == null
+                            || !WorkbenchAccess.canSeeProject(
+                                    user.tenantId(), project.getTenantId(), memberships, project.getId())) {
+                        return false;
+                    }
+                    boolean mine = WorkbenchAccess.isMyRequirement(
+                            user.userId(), requirement.getCreatedBy(), requirement.getOwnerId());
+                    return switch (scope) {
+                        case MEMBER -> true;
+                        case MINE, WAITING -> mine;
+                    };
+                });
+
         return new WorkbenchSnapshot(
                 scope.name().toLowerCase(),
                 visibleRequirements,
                 visibleTasks,
-                counts(visibleRequirements, visibleTasks));
+                counts(visibleRequirements, visibleTasks),
+                proposals);
     }
 
     public WorkbenchRequirementItem requirement(AuthUser user, String requirementId) {
@@ -237,6 +261,7 @@ public class WorkbenchService {
                 scope.name().toLowerCase(),
                 List.of(),
                 List.of(),
-                new WorkbenchSnapshot.WorkbenchCounts(0, 0, 0, 0, 0, 0));
+                new WorkbenchSnapshot.WorkbenchCounts(0, 0, 0, 0, 0, 0),
+                List.of());
     }
 }

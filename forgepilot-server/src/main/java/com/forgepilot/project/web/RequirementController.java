@@ -10,6 +10,10 @@ import com.forgepilot.project.lifecycle.RequirementLifecycleService.DefectView;
 import com.forgepilot.project.lifecycle.RequirementLifecycleService.DocumentView;
 import com.forgepilot.project.lifecycle.RequirementLifecycleService.RequirementViewStatus;
 import com.forgepilot.project.lifecycle.RequirementLifecycleService.ReviewView;
+import com.forgepilot.project.pmo.PmoProposalService;
+import com.forgepilot.project.pmo.PmoProposalView;
+import com.forgepilot.project.pmo.PmoProposalView.ConfirmResult;
+import com.forgepilot.project.pmo.PmoProposalView.ListView;
 import com.forgepilot.project.service.RequirementService;
 import com.forgepilot.project.service.RequirementService.RequirementDetailView;
 import com.forgepilot.system.security.AuthContext;
@@ -30,14 +34,17 @@ public class RequirementController {
     private final RequirementService requirementService;
     private final TaskService taskService;
     private final RequirementLifecycleService lifecycleService;
+    private final PmoProposalService pmoProposalService;
 
     public RequirementController(
             RequirementService requirementService,
             TaskService taskService,
-            RequirementLifecycleService lifecycleService) {
+            RequirementLifecycleService lifecycleService,
+            PmoProposalService pmoProposalService) {
         this.requirementService = requirementService;
         this.taskService = taskService;
         this.lifecycleService = lifecycleService;
+        this.pmoProposalService = pmoProposalService;
     }
 
     @GetMapping("/{requirementId}")
@@ -145,5 +152,34 @@ public class RequirementController {
     public DefectView createDefect(
             @PathVariable String requirementId, @Valid @RequestBody CreateDefectRequest request) {
         return lifecycleService.createDefect(AuthContext.require(), requirementId, request);
+    }
+
+    @GetMapping("/{requirementId}/proposals")
+    public ListView proposals(@PathVariable String requirementId) {
+        return pmoProposalService.listForRequirement(AuthContext.require(), requirementId);
+    }
+
+    @PostMapping("/{requirementId}/proposals/{proposalId}/confirm")
+    public ConfirmResult confirmProposal(
+            @PathVariable String requirementId,
+            @PathVariable String proposalId,
+            @RequestBody(required = false) @Valid ConfirmProposalRequest request) {
+        return pmoProposalService.confirm(
+                AuthContext.require(),
+                requirementId,
+                proposalId,
+                request == null ? new ConfirmProposalRequest(null, null) : request);
+    }
+
+    @PostMapping("/{requirementId}/proposals/{proposalId}/return")
+    public PmoProposalView returnProposal(
+            @PathVariable String requirementId,
+            @PathVariable String proposalId,
+            @RequestBody(required = false) @Valid ReturnProposalRequest request) {
+        return pmoProposalService.dismiss(
+                AuthContext.require(),
+                requirementId,
+                proposalId,
+                request == null ? new ReturnProposalRequest(null) : request);
     }
 }

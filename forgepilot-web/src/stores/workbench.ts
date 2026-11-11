@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import { apiFetch } from '@/api/http'
 import { useAuthStore } from '@/stores/auth'
+import { isTaskDraft, proposalInboxSummary, requirementIdsWithTaskDrafts, type PmoProposal } from '@/domain/pmo'
 import type { WorkRequirement, WorkTask } from '@/types'
 
 interface WorkbenchCounts {
@@ -57,6 +58,7 @@ interface WorkbenchSnapshot {
   requirements: ApiRequirement[]
   tasks: ApiTask[]
   counts: WorkbenchCounts
+  proposals?: PmoProposal[]
 }
 
 interface RequirementDetailResponse {
@@ -204,6 +206,7 @@ export const useWorkbenchStore = defineStore('workbench', () => {
   const auth = useAuthStore()
   const requirements = ref<WorkRequirement[]>([])
   const tasks = ref<WorkTask[]>([])
+  const proposals = ref<PmoProposal[]>([])
   const scope = ref<'mine' | 'member' | 'waiting'>('waiting')
   const loading = ref(false)
   const error = ref('')
@@ -232,12 +235,15 @@ export const useWorkbenchStore = defineStore('workbench', () => {
 
   const inboxItems = computed(() => {
     const items: Array<{
-      kind: 'requirement' | 'task'
+      kind: 'requirement' | 'task' | 'proposal'
       id: string
       code: string
       title: string
       summary: string
-      action: '去验收' | '去审核' | '去处理'
+      action: '去验收' | '去审核' | '去处理' | '确认创建'
+      requirementId?: string
+      proposalId?: string
+      taskType?: string
     }> = []
     for (const requirement of requirements.value) {
       if (requirement.status === '待验收') {
@@ -272,9 +278,13 @@ export const useWorkbenchStore = defineStore('workbench', () => {
         })
       }
     }
+    const draftedRequirementIds = requirementIdsWithTaskDrafts(proposals.value)
     if (scope.value === 'waiting') {
       for (const requirement of requirements.value) {
         if (['待分析', '待需求评审', '设计中', '待设计评审', '待开发'].includes(String(requirement.status))) {
+          if (requirement.status === '待开发' && draftedRequirementIds.has(requirement.id)) {
+            continue
+          }
           items.push({
             kind: 'requirement',
             id: requirement.id,
@@ -285,6 +295,20 @@ export const useWorkbenchStore = defineStore('workbench', () => {
           })
         }
       }
+    }
+    for (const proposal of proposals.value) {
+      if (!isTaskDraft(proposal)) continue
+      items.push({
+        kind: 'proposal',
+        id: proposal.proposalId,
+        code: proposal.requirementCode || '',
+        title: proposal.title,
+        summary: proposalInboxSummary(proposal),
+        action: '确认创建',
+        requirementId: proposal.requirementId,
+        proposalId: proposal.proposalId,
+        taskType: proposal.taskType || undefined,
+      })
     }
     return items
   })
@@ -325,17 +349,24 @@ export const useWorkbenchStore = defineStore('workbench', () => {
       requirements.value = snapshot.requirements.map(toRequirement)
       tasks.value = snapshot.tasks.map(toTask)
       counts.value = snapshot.counts
+      proposals.value = (snapshot.proposals || []).filter(isTaskDraft)
       if (nextScope === 'waiting') {
+        const draftedRequirementIds = requirementIdsWithTaskDrafts(proposals.value)
         waitingActionCount.value =
-          snapshot.requirements.filter((item) =>
-            ['待分析', '待需求评审', '设计中', '待设计评审', '待开发', '待验收'].includes(item.status),
-          ).length +
-          snapshot.tasks.filter((item) => ['WAITING_APPROVAL', 'WAITING_USER'].includes(item.status)).length
+          snapshot.requirements.filter((item) => {
+            if (!['待分析', '待需求评审', '设计中', '待设计评审', '待开发', '待验收'].includes(item.status)) {
+              return false
+            }
+            return !(item.status === '待开发' && draftedRequirementIds.has(item.id))
+          }).length +
+          snapshot.tasks.filter((item) => ['WAITING_APPROVAL', 'WAITING_USER'].includes(item.status)).length +
+          proposals.value.length
       }
     } catch (err) {
       error.value = err instanceof Error ? err.message : '加载工作台失败'
       requirements.value = []
       tasks.value = []
+      proposals.value = []
     } finally {
       loading.value = false
     }
@@ -724,6 +755,28 @@ export const useWorkbenchStore = defineStore('workbench', () => {
     }
   }
 
+  async function confirmProposal(proposal: Pick<PmoProposal, 'proposalId' | 'requirementId' | 'title'>, title?: string) {
+    actionError.value = ''
+    const result = await apiFetch<{ task?: { id: string; title: string; status: string } }>(
+      `/api/v1/requirements/${proposal.requirementId}/proposals/${proposal.proposalId}/confirm`,
+      {
+        method: 'POST',
+        body: JSON.stringify({ title: (title ?? proposal.title).trim() }),
+      },
+    )
+    await load(scope.value)
+    return result
+  }
+
+  async function returnProposal(proposal: Pick<PmoProposal, 'proposalId' | 'requirementId'>, comment?: string) {
+    actionError.value = ''
+    await apiFetch(`/api/v1/requirements/${proposal.requirementId}/proposals/${proposal.proposalId}/return`, {
+      method: 'POST',
+      body: JSON.stringify({ comment: comment || undefined }),
+    })
+    await load(scope.value)
+  }
+
   return {
     scope,
     loading,
@@ -735,6 +788,7 @@ export const useWorkbenchStore = defineStore('workbench', () => {
     filteredRequirements,
     filteredTasks,
     inboxItems,
+    proposals,
     searchQuery,
     selectedStat,
     waitingActionCount,
@@ -760,5 +814,7 @@ export const useWorkbenchStore = defineStore('workbench', () => {
     startTask,
     verifyTask,
     retryDelivery,
+    confirmProposal,
+    returnProposal,
   }
 })

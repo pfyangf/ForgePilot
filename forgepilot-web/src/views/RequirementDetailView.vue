@@ -68,7 +68,20 @@
       </template>
       <div class="fp-stage-panel">
         <p class="fp-stage-lead">{{ stageAdvice.hint }}</p>
-        <div class="fp-stage-actions">
+        <div v-if="taskDrafts.length" class="fp-draft-list">
+          <div v-for="draft in taskDrafts" :key="draft.proposalId" class="fp-draft-card">
+            <div class="fp-draft-card__meta">
+              <span class="fp-status-tag">{{ taskTypeLabel(draft.taskType) }}</span>
+              <span class="fp-draft-note">平台建议，确认后只会创建任务，不会自动启动编码。</span>
+            </div>
+            <el-input v-model="draftTitles[draft.proposalId]" maxlength="256" />
+            <div class="fp-stage-actions">
+              <el-button :loading="saving" @click="returnProposal(draft)">退回</el-button>
+              <el-button type="primary" :loading="saving" @click="confirmProposal(draft)">确认创建</el-button>
+            </div>
+          </div>
+        </div>
+        <div v-if="!taskDrafts.length || stageAdvice.secondary.length" class="fp-stage-actions">
           <el-button
             v-for="action in stageAdvice.secondary"
             :key="action.label"
@@ -78,7 +91,7 @@
             {{ action.label }}
           </el-button>
           <el-button
-            v-if="stageAdvice.danger"
+            v-if="!taskDrafts.length && stageAdvice.danger"
             type="danger"
             :loading="saving"
             @click="stageAdvice.danger.run()"
@@ -86,7 +99,7 @@
             {{ stageAdvice.danger.label }}
           </el-button>
           <el-button
-            v-if="stageAdvice.primary"
+            v-if="!taskDrafts.length && stageAdvice.primary"
             :type="stageAdvice.primary.type || 'primary'"
             :loading="saving"
             @click="stageAdvice.primary.run()"
@@ -472,12 +485,13 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import DOMPurify from 'dompurify'
 import { marked } from 'marked'
 import { apiFetch } from '@/api/http'
 import BranchPill from '@/components/BranchPill.vue'
 import FlowBoard from '@/components/FlowBoard.vue'
+import { draftTitlesFrom, isTaskDraft, taskTypeLabel, type PmoProposal } from '@/domain/pmo'
 import { statusTone, taskStatusLabel } from '@/domain/labels'
 import {
   defectLoopCaption,
@@ -634,6 +648,9 @@ const releaseTargets = ref<Record<string, string>>({})
 const releasePlanError = ref('')
 const testPoints = ref('')
 const activeTab = ref<'flow' | 'tasks' | 'docs' | 'defects' | 'activity'>('flow')
+const proposals = ref<PmoProposal[]>([])
+const draftTitles = ref<Record<string, string>>({})
+const taskDrafts = computed(() => proposals.value.filter(isTaskDraft))
 
 const status = computed(() => detail.value?.requirement.status || '')
 const gates = computed<GateRow>(
@@ -694,7 +711,43 @@ const stageAdvice = computed(() => {
   const secondary: StageAction[] = []
   let primary: StageAction | null = null
   let danger: StageAction | null = null
-  let hint = hintBase
+  let hint = proposals.value[0]?.hint || hintBase
+  if (taskDrafts.value.length) {
+    const first = taskDrafts.value[0]
+    hint = first.hint
+    if (status.value === '测试中') {
+      secondary.push({ label: '登记缺陷', run: () => { activeTab.value = 'defects'; showDefectDialog.value = true } })
+    }
+    secondary.push({ label: '新建任务', run: () => { activeTab.value = 'tasks'; openCreateTask() } })
+    danger = { label: '退回', run: () => void returnProposal(first) }
+    primary = { label: '确认创建', run: () => void confirmProposal(first) }
+    return { hint, primary, secondary, danger }
+  }
+  const bind = proposals.value.find((item) => item.kind === 'BIND_PROJECT')
+  if (bind) {
+    hint = bind.hint
+    primary = {
+      label: bind.primaryActionLabel || '去项目里绑定',
+      run: () => {
+        if (detail.value?.requirement.projectId) router.push(`/projects/${detail.value.requirement.projectId}`)
+      },
+    }
+    return { hint, primary, secondary, danger }
+  }
+  const reviewCode = proposals.value.find((item) => item.kind === 'REVIEW_CODE' && item.targetTaskId)
+  if (reviewCode?.targetTaskId) {
+    hint = reviewCode.hint
+    secondary.push({ label: '新建任务', run: () => { activeTab.value = 'tasks'; openCreateTask() } })
+    primary = { label: '去评审', type: 'warning', run: () => openTask({ id: reviewCode.targetTaskId as string }) }
+    return { hint, primary, secondary, danger }
+  }
+  const verify = proposals.value.find((item) => item.kind === 'VERIFY_REGRESSION' && item.defectId)
+  if (verify?.defectId) {
+    hint = verify.hint
+    secondary.push({ label: '登记缺陷', run: () => { activeTab.value = 'defects'; showDefectDialog.value = true } })
+    primary = { label: '回归通过', run: () => { activeTab.value = 'defects'; void defectAction(verify.defectId as string, 'verify') } }
+    return { hint, primary, secondary, danger }
+  }
   switch (status.value) {
     case '待分析':
       hint = '先确认分析草稿和任务建议，再提交需求评审。确认后不会立刻创建任务。'
@@ -766,7 +819,10 @@ const stageAdvice = computed(() => {
       primary = { label: '查看发布记录', run: () => { activeTab.value = 'flow'; focusStage('发布') } }
       break
     default:
-      hint = hintBase
+      hint = proposals.value[0]?.hint || hintBase
+  }
+  if (proposals.value[0]?.hint) {
+    hint = proposals.value[0].hint
   }
   return { hint, primary, secondary, danger }
 })
@@ -956,6 +1012,9 @@ async function reload() {
   try {
     const data = await apiFetch<RequirementDetail>(`/api/v1/requirements/${props.id}`)
     detail.value = data
+    const proposalList = await apiFetch<{ proposals: PmoProposal[] }>(`/api/v1/requirements/${props.id}/proposals`)
+    proposals.value = proposalList.proposals || []
+    draftTitles.value = draftTitlesFrom(proposals.value)
     draft.value = data.draft || ''
     suggestions.value = (data.suggestedTaskTitles || []).map((title) => ({ title }))
     manualStatus.value = data.requirement.status
@@ -969,6 +1028,8 @@ async function reload() {
     }
   } catch (err) {
     detail.value = null
+    proposals.value = []
+    draftTitles.value = {}
     error.value = err instanceof Error ? err.message : '加载失败'
   } finally {
     loading.value = false
@@ -1097,6 +1158,62 @@ async function reviewDesign(decision: 'APPROVED' | 'REJECTED') {
   } catch (err) {
     error.value = err instanceof Error ? err.message : '评审失败'
     ElMessage.error(error.value)
+  } finally {
+    saving.value = false
+  }
+}
+
+async function confirmProposal(draft: PmoProposal) {
+  const title = (draftTitles.value[draft.proposalId] || draft.title || '').trim()
+  if (!title) {
+    ElMessage.warning('请填写任务标题')
+    return
+  }
+  saving.value = true
+  error.value = ''
+  try {
+    await apiFetch(`/api/v1/requirements/${props.id}/proposals/${draft.proposalId}/confirm`, {
+      method: 'POST',
+      body: JSON.stringify({ title }),
+    })
+    ElMessage.success('已按平台建议创建任务，不会自动启动编码')
+    await reload()
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : '确认失败'
+    ElMessage.error(error.value)
+  } finally {
+    saving.value = false
+  }
+}
+
+async function returnProposal(draft: PmoProposal) {
+  try {
+    const { value } = await ElMessageBox.prompt(
+      '退回后，在情况变化之前不会再出现这条建议。可填写原因（可选）。',
+      '退回平台建议',
+      {
+        confirmButtonText: '退回',
+        cancelButtonText: '取消',
+        inputPlaceholder: '退回原因（可选）',
+        inputValue: '',
+      },
+    )
+    saving.value = true
+    error.value = ''
+    await apiFetch(`/api/v1/requirements/${props.id}/proposals/${draft.proposalId}/return`, {
+      method: 'POST',
+      body: JSON.stringify({ comment: value || undefined }),
+    })
+    ElMessage.success('已退回平台建议')
+    await reload()
+  } catch (err) {
+    if (err === 'cancel' || err === 'close') {
+      return
+    }
+    error.value = err instanceof Error ? err.message : '退回失败'
+    if (error.value) {
+      ElMessage.error(error.value)
+    }
   } finally {
     saving.value = false
   }
@@ -1384,5 +1501,29 @@ function openTask(row: { id: string }) {
   display: flex;
   flex-direction: column;
   gap: 12px;
+}
+.fp-draft-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 16px;
+}
+.fp-draft-card {
+  padding: 14px 16px;
+  border: 1px solid var(--fp-color-border, rgba(255, 255, 255, 0.08));
+  border-radius: var(--fp-radius, 12px);
+  background: rgba(255, 255, 255, 0.03);
+}
+.fp-draft-card__meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+.fp-draft-note {
+  margin: 0;
+  color: var(--fp-color-text-secondary, #8b96b0);
+  font-size: 12px;
 }
 </style>

@@ -124,10 +124,7 @@ public final class RequirementStatusMachine {
         return current;
     }
 
-    public static List<String> startBlockers(String taskType, GateSnapshot gates) {
-        if (!requiresStartGate(taskType)) {
-            return List.of();
-        }
+    public static List<String> reviewBlockers(GateSnapshot gates) {
         List<String> blockers = new ArrayList<>();
         if (!gates.requirementReviewApproved()) {
             blockers.add("最近一次需求评审尚未通过");
@@ -138,6 +135,11 @@ public final class RequirementStatusMachine {
         if (!gates.designReviewApproved()) {
             blockers.add("最近一次设计文档评审尚未通过");
         }
+        return List.copyOf(blockers);
+    }
+
+    public static List<String> bindingBlockers(GateSnapshot gates) {
+        List<String> blockers = new ArrayList<>();
         if (!gates.codingToolBound()) {
             blockers.add("项目未绑定默认编码工具");
         }
@@ -147,6 +149,16 @@ public final class RequirementStatusMachine {
         if (!gates.repoBound()) {
             blockers.add("项目尚未关联仓库");
         }
+        return List.copyOf(blockers);
+    }
+
+    public static List<String> startBlockers(String taskType, GateSnapshot gates) {
+        if (!requiresStartGate(taskType)) {
+            return List.of();
+        }
+        List<String> blockers = new ArrayList<>();
+        blockers.addAll(reviewBlockers(gates));
+        blockers.addAll(bindingBlockers(gates));
         return List.copyOf(blockers);
     }
 
