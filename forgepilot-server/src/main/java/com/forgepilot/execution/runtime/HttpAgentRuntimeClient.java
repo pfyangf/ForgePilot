@@ -23,7 +23,7 @@ public class HttpAgentRuntimeClient implements AgentRuntimePort {
             HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).build();
 
     public HttpAgentRuntimeClient(
-            @Value("${forgepilot.execution.base-url:http://127.0.0.1:8081}") String baseUrl,
+            @Value("${forgepilot.execution.base-url:http://127.0.0.1:19081}") String baseUrl,
             ObjectMapper objectMapper) {
         this.baseUrl = baseUrl.endsWith("/") ? baseUrl.substring(0, baseUrl.length() - 1) : baseUrl;
         this.objectMapper = objectMapper;

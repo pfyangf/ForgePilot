@@ -1,5 +1,5 @@
 server:
-  port: 8081
+  port: 19081
 
 spring:
   application:
@@ -13,14 +13,14 @@ management:
 
 forgepilot:
   control-plane:
-    base-url: ${FORGEPILOT_CONTROL_PLANE_URL:http://localhost:8080}
+    base-url: ${FORGEPILOT_CONTROL_PLANE_URL:http://localhost:19080}
   storage:
     root: ${FORGEPILOT_STORAGE_ROOT:${java.io.tmpdir}/forgepilot-execution}
   model-proxy:
     # 对 Agent 暴露 Responses。MVP 与执行服务同端口，路径 /v1/responses。
     wire-api: responses
     bind: 127.0.0.1
-    port: ${server.port:8081}
+    port: ${server.port:19081}
     token-ttl-seconds: 3600
   isolation:
     # 意图：Agent 默认拒绝访问控制面管理面与中间件；容器网络策略后续落实。

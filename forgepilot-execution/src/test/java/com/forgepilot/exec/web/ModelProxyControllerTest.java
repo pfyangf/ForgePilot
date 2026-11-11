@@ -24,7 +24,7 @@ class ModelProxyControllerTest {
 
     @BeforeEach
     void setUp() {
-        proxy = new InMemoryModelSessionProxy("127.0.0.1", 8081, 3600);
+        proxy = new InMemoryModelSessionProxy("127.0.0.1", 19081, 3600);
         forwardedKey = new AtomicReference<>();
         UpstreamResponsesClient upstream = (baseUrl, apiKey, body) -> {
             forwardedKey.set(apiKey);

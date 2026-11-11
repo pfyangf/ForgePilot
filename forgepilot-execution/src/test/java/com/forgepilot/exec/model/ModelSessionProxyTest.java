@@ -11,11 +11,11 @@ class ModelSessionProxyTest {
 
     @Test
     void issuesResponsesOnlyCredentialWithoutRawApiKeyInAgentConfig() {
-        InMemoryModelSessionProxy proxy = new InMemoryModelSessionProxy("127.0.0.1", 8081, 3600);
+        InMemoryModelSessionProxy proxy = new InMemoryModelSessionProxy("127.0.0.1", 19081, 3600);
         var cred = proxy.issue(new ModelSessionProxy.ModelSessionRequest(
                 "s1", "prov", "gpt", "https://api.openai.com/v1", "sk-secret-provider-key", "responses"));
         assertThat(proxy.exposedWireApi()).isEqualTo("responses");
-        assertThat(cred.baseUrl()).isEqualTo("http://127.0.0.1:8081/v1");
+        assertThat(cred.baseUrl()).isEqualTo("http://127.0.0.1:19081/v1");
         assertThat(cred.shortLivedToken()).startsWith("fp_ms_");
         Map<String, Object> agentConfig = proxy.agentFacingConfig(cred);
         assertThat(agentConfig.get("wire_api")).isEqualTo("responses");
@@ -25,7 +25,7 @@ class ModelSessionProxyTest {
 
     @Test
     void rejectsMissingAndRevokedTokens() {
-        InMemoryModelSessionProxy proxy = new InMemoryModelSessionProxy("127.0.0.1", 8081, 3600);
+        InMemoryModelSessionProxy proxy = new InMemoryModelSessionProxy("127.0.0.1", 19081, 3600);
         assertThatThrownBy(() -> proxy.requireValidToken(null))
                 .isInstanceOf(UnauthorizedProxyException.class);
         assertThatThrownBy(() -> proxy.requireValidToken("Bearer missing"))
@@ -42,7 +42,7 @@ class ModelSessionProxyTest {
 
     @Test
     void rejectsExpiredToken() {
-        InMemoryModelSessionProxy proxy = new InMemoryModelSessionProxy("127.0.0.1", 8081, 0);
+        InMemoryModelSessionProxy proxy = new InMemoryModelSessionProxy("127.0.0.1", 19081, 0);
         var cred = proxy.issue(new ModelSessionProxy.ModelSessionRequest(
                 "s3", "prov", "m", "http://up", "key", "responses"));
         try {

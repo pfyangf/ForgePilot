@@ -37,11 +37,11 @@ npm run build --prefix forgepilot-web
 npm run dev --prefix forgepilot-web
 ```
 
-控制面监听 `8080`，执行服务监听 `8081`，前端开发服务器监听 `5173` 并把 `/api` 代理到控制面。
+控制面监听 `19080`，执行服务监听 `19081`，前端开发服务器监听 `19173` 并把 `/api` 代理到控制面。
 
-- 控制面健康检查：`http://localhost:8080/api/v1/health`
-- 执行服务健康检查：`http://localhost:8081/api/v1/health`
-- 模型目录占位：`http://localhost:8080/api/v1/model-providers` 返回 501，不返回密钥
+- 控制面健康检查：`http://localhost:19080/api/v1/health`
+- 执行服务健康检查：`http://localhost:19081/api/v1/health`
+- 模型目录占位：`http://localhost:19080/api/v1/model-providers` 返回 501，不返回密钥
 - 控制面启动会跑 Flyway，因此需要 Compose 里的 PostgreSQL。执行服务不连接业务库。
 
 Compose 里的账号口令只用于本机开发：PostgreSQL 和 RabbitMQ 是 `forgepilot` / `forgepilot`，MinIO 是 `forgepilot` / `forgepilot-dev`。不要把它们用于共享环境。
@@ -53,7 +53,7 @@ Compose 只起基础设施；控制面通过环境变量/ `application.yml` 开�
 | 能力 | 默认（`mvn test` 友好） | 打开真实依赖 |
 | --- | --- | --- |
 | RabbitMQ 控制事件 | `FORGEPILOT_RABBIT_ENABLED=false`（Outbox → 内存假 broker） | `true`，并保证 `rabbitmq` 健康 |
-| MinIO 日志归档 | `FORGEPILOT_MINIO_ENABLED=false`（`InMemoryObjectStorage`） | `true`，endpoint `http://localhost:9000`，账号见上 |
+| MinIO 日志归档 | `FORGEPILOT_MINIO_ENABLED=false`（`InMemoryObjectStorage`） | `true`，endpoint `http://localhost:19000`，账号见上 |
 | 工作区保留宽限 | `FORGEPILOT_WORKSPACE_RETENTION_GRACE_DAYS=7` | 任务 `COMPLETED`/`FAILED`/`CANCELLED` 后超过宽限才删盘；**停止 Agent/验证容器不删工作区** |
 | Docker 出口 | `FORGEPILOT_DOCKER_ALLOWLIST_NETWORK=false` → `network=none` | `true` 时使用自定义 bridge 名（默认 `forgepilot-egress`），需自备防火墙放行 Git/模型代理/包仓库 |
 | 后台 Worker | `FORGEPILOT_WORKERS_ENABLED=true`（Outbox 排空 / 归档重试 / 工作区清理） | 设 `false` 可关闭调度；单元测试不启 Spring 上下文故无影响 |

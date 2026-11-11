@@ -26,7 +26,7 @@ public class MinioObjectStorage implements ObjectStoragePort {
     private final MinioClient client;
 
     public MinioObjectStorage(
-            @Value("${forgepilot.minio.endpoint:http://localhost:9000}") String endpoint,
+            @Value("${forgepilot.minio.endpoint:http://localhost:19000}") String endpoint,
             @Value("${forgepilot.minio.access-key:forgepilot}") String accessKey,
             @Value("${forgepilot.minio.secret-key:forgepilot-dev}") String secretKey) {
         this.client = MinioClient.builder().endpoint(endpoint).credentials(accessKey, secretKey).build();

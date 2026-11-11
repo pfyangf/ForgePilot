@@ -46,24 +46,26 @@ docker compose up -d postgres redis
 
 这两个默认值正好适合这台测试机。
 
-公网机器上，把数据库和 Redis 绑到本机回环地址，避免 `5432`、`6379` 暴露到公网。修改 `docker-compose.yml` 的端口：
+公网机器上，把数据库和 Redis 绑到本机回环地址，避免 `19532`、`19637` 暴露到公网。仓库里的 `docker-compose.yml` 默认已经这样绑定：
 
 ```yaml
 services:
   postgres:
     ports:
-      - "127.0.0.1:5432:5432"
+      - "127.0.0.1:19532:5432"
   redis:
     ports:
-      - "127.0.0.1:6379:6379"
+      - "127.0.0.1:19637:6379"
 ```
+
+容器内部仍使用 PostgreSQL `5432` 和 Redis `6379`。RabbitMQ / MinIO 如需在本机完整 Compose 中启动，主机端口同样只绑回环：`19567`（AMQP）、`19672`（管理界面）、`19000` / `19001`（MinIO API / 控制台）。2G 验收机不要启动这两个服务。
 
 安全组或防火墙只放行：
 
-- `22`：SSH
-- `80`：工作台（Nginx）
+- `3222/tcp`：SSH
+- `19180/tcp`：ForgePilot 工作台（Nginx 对外入口）
 
-不要对公网开放 `5432`、`6379`、`8080`、`8081`、`5672`、`9000`、`9001`。`8081` 是执行面，只应被本机控制面访问。
+不要对公网开放 `19532`、`19637`、`19080`、`19081`、`19567`、`19672`、`19000`、`19001`（也不要开放旧的 `5432`、`6379`、`8080`、`8081`、`5672`、`9000`、`9001`）。`19081` 是执行面，只应被本机控制面访问。`19080` 是控制面回环端口，由本机 Nginx 反代，不要直接暴露或与 Nginx 的 `19180` 冲突。
 
 演示账号口令是公开的 `ForgePilot!dev`。如果这台机器有公网 IP，务必用安全组限制来源 IP，或部署后立刻改口令。本文的中间件口令同样只适合单人测试，不要用于共享环境。
 
@@ -160,20 +162,20 @@ npm run build --prefix forgepilot-web
 
 ```bash
 # 控制面
-export FORGEPILOT_DB_URL=jdbc:postgresql://127.0.0.1:5432/forgepilot
+export FORGEPILOT_DB_URL=jdbc:postgresql://127.0.0.1:19532/forgepilot
 export FORGEPILOT_DB_USERNAME=forgepilot
 export FORGEPILOT_DB_PASSWORD=forgepilot
 export FORGEPILOT_REDIS_HOST=127.0.0.1
-export FORGEPILOT_REDIS_PORT=6379
+export FORGEPILOT_REDIS_PORT=19637
 export FORGEPILOT_RABBIT_ENABLED=false
 export FORGEPILOT_MINIO_ENABLED=false
 export FORGEPILOT_WORKERS_ENABLED=true
-export FORGEPILOT_EXECUTION_URL=http://127.0.0.1:8081
+export FORGEPILOT_EXECUTION_URL=http://127.0.0.1:19081
 export FORGEPILOT_JWT_SECRET='请换成至少 32 字节的随机字符串'
 export FORGEPILOT_WORKSPACE_ROOT=/var/lib/forgepilot/workspaces
 
 # 执行面
-export FORGEPILOT_CONTROL_PLANE_URL=http://127.0.0.1:8080
+export FORGEPILOT_CONTROL_PLANE_URL=http://127.0.0.1:19080
 export FORGEPILOT_STORAGE_ROOT=/var/lib/forgepilot/execution
 export FORGEPILOT_NODE_KEY=test-exec-1
 export FORGEPILOT_NODE_CAPACITY=1
@@ -221,19 +223,19 @@ nohup java -Xms128m -Xmx256m \
 健康检查：
 
 ```bash
-curl -sS http://127.0.0.1:8080/api/v1/health
-curl -sS http://127.0.0.1:8081/api/v1/health
+curl -sS http://127.0.0.1:19080/api/v1/health
+curl -sS http://127.0.0.1:19081/api/v1/health
 ```
 
 两者都应返回健康状态。控制面第一次启动会跑 Flyway，并写入演示账号，可能需要一两分钟。
 
 ## 8. 用 Nginx 对外提供工作台
 
-前端请求使用相对路径 `/api/...`，必须和工作台同源。不要单独把 Vite 开发端口暴露到公网，也不要让浏览器直接打 `8080`。
+前端请求使用相对路径 `/api/...`，必须和工作台同源。不要单独把 Vite 开发端口（`19173`）暴露到公网，也不要让浏览器直接打控制面回环端口 `19080`。对外入口是 Nginx 的 `19180`。同机若还有其他应用占用机器级 Nginx 的 `80` 端口，不要改那些 server 块。
 
 ```nginx
 server {
-    listen 80;
+    listen 19180;
     server_name _;
 
     root /opt/forgepilot/forgepilot-web/dist;
@@ -244,7 +246,7 @@ server {
     }
 
     location /api/ {
-        proxy_pass http://127.0.0.1:8080;
+        proxy_pass http://127.0.0.1:19080;
         proxy_http_version 1.1;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
@@ -267,7 +269,7 @@ sudo rm -f /etc/nginx/sites-enabled/default
 sudo nginx -t && sudo systemctl reload nginx
 ```
 
-浏览器访问 `http://<公网IP>/`。安全组需要放行 80 端口。
+浏览器访问 `http://<主机>:19180/`。安全组需要放行 `19180/tcp`（以及 SSH 的 `3222/tcp`）。不要放行 `19080` 或其他中间件端口。
 
 ## 9. 验收清单
 
@@ -296,7 +298,7 @@ sudo nginx -t && sudo systemctl reload nginx
 先确认 swap 已启用，JVM 使用 `-Xmx256m`，并且没有同时启动 RabbitMQ、MinIO 或 `npm run dev`。用 `free -h` 和 `dmesg -T | tail` 查看是否被 OOM Killer 杀掉。
 
 **页面能打开，登录或接口 404**  
-Nginx 没有把 `/api/` 反代到 `127.0.0.1:8080`，或前端不是通过 80 端口同源访问。
+Nginx 没有把 `/api/` 反代到 `127.0.0.1:19080`，或前端不是通过 `19180` 端口同源访问。
 
 **能登录，但节点列表是空的**  
 执行面没有起来，或 `FORGEPILOT_CONTROL_PLANE_URL` / `FORGEPILOT_EXECUTION_URL` 不是本机回环地址。先打两个 health 接口。

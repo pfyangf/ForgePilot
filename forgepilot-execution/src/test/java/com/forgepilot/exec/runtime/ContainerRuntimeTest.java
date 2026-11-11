@@ -26,7 +26,7 @@ class ContainerRuntimeTest {
                 temp.resolve("ws"),
                 temp.resolve("home"),
                 Map.of("CODEX_API_KEY", "fp_ms_short"),
-                List.of("git.example.com", "127.0.0.1:8081", "registry.npmjs.org")));
+                List.of("git.example.com", "127.0.0.1:19081", "registry.npmjs.org")));
         assertThat(agent.kind()).isEqualTo(ContainerRuntime.SandboxKind.AGENT);
         assertThat(agent.isolationRecord().get("defaultDenyEgress")).isEqualTo(true);
         assertThat(agent.isolationRecord().get("allowModelCredentials")).isEqualTo(true);
@@ -78,7 +78,7 @@ class ContainerRuntimeTest {
                 temp.resolve("ws"),
                 temp.resolve("home"),
                 Map.of(),
-                List.of("git.example.com", "127.0.0.1:8081", "registry.npmjs.org"));
+                List.of("git.example.com", "127.0.0.1:19081", "registry.npmjs.org"));
         assertThat(safe.resolveNetwork(denySpec)).isEqualTo("none");
 
         DockerContainerRuntime allow = new DockerContainerRuntime(true, "forgepilot-egress");

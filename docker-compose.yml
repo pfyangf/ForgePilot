@@ -1,4 +1,5 @@
 # 本机开发用的基础设施。账号口令只用于这台机器上的 Compose，不是生产密钥。
+# 主机端口绑定 127.0.0.1，避免在公网机器上误暴露中间件。
 services:
   postgres:
     image: postgres:16-alpine
@@ -7,7 +8,7 @@ services:
       POSTGRES_PASSWORD: forgepilot
       POSTGRES_DB: forgepilot
     ports:
-      - "5432:5432"
+      - "127.0.0.1:19532:5432"
     volumes:
       - forgepilot-postgres:/var/lib/postgresql/data
     healthcheck:
@@ -19,7 +20,7 @@ services:
   redis:
     image: redis:7-alpine
     ports:
-      - "6379:6379"
+      - "127.0.0.1:19637:6379"
     volumes:
       - forgepilot-redis:/data
     healthcheck:
@@ -34,8 +35,8 @@ services:
       RABBITMQ_DEFAULT_USER: forgepilot
       RABBITMQ_DEFAULT_PASS: forgepilot
     ports:
-      - "5672:5672"
-      - "15672:15672"
+      - "127.0.0.1:19567:5672"
+      - "127.0.0.1:19672:15672"
     volumes:
       - forgepilot-rabbitmq:/var/lib/rabbitmq
     healthcheck:
@@ -51,8 +52,8 @@ services:
       MINIO_ROOT_USER: forgepilot
       MINIO_ROOT_PASSWORD: forgepilot-dev
     ports:
-      - "9000:9000"
-      - "9001:9001"
+      - "127.0.0.1:19000:9000"
+      - "127.0.0.1:19001:9001"
     volumes:
       - forgepilot-minio:/data
 

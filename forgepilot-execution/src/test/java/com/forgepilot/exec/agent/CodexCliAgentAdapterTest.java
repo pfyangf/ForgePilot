@@ -64,7 +64,7 @@ class CodexCliAgentAdapterTest {
                 "session-1",
                 temp.resolve("ws").toString(),
                 temp.resolve("home").toString(),
-                "http://127.0.0.1:8081/v1",
+                "http://127.0.0.1:19081/v1",
                 "fp_ms_test",
                 "model-x");
         assertThatThrownBy(() -> adapter.start(context))
@@ -105,13 +105,13 @@ class CodexCliAgentAdapterTest {
                 "session-2",
                 temp.resolve("ws").toString(),
                 temp.resolve("home").toString(),
-                "http://127.0.0.1:8081/v1",
+                "http://127.0.0.1:19081/v1",
                 "fp_ms_short",
                 "gpt-test");
         adapter.start(context);
         String toml = java.nio.file.Files.readString(temp.resolve("home/config.toml"));
         assertThat(toml).contains("wire_api = \"responses\"");
-        assertThat(toml).contains("base_url = \"http://127.0.0.1:8081/v1\"");
+        assertThat(toml).contains("base_url = \"http://127.0.0.1:19081/v1\"");
         assertThat(toml).doesNotContain("sk-provider");
         assertThat(toml.toLowerCase()).doesNotContain("api_key=");
     }

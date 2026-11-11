@@ -22,7 +22,7 @@ public class HttpNodeRegistration implements NodeRegistrationPort {
             HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).build();
 
     public HttpNodeRegistration(
-            @Value("${forgepilot.control-plane.base-url:http://127.0.0.1:8080}") String controlPlaneBaseUrl,
+            @Value("${forgepilot.control-plane.base-url:http://127.0.0.1:19080}") String controlPlaneBaseUrl,
             @Value("${forgepilot.internal-api.token:}") String internalToken,
             ObjectMapper objectMapper) {
         this.controlPlaneBaseUrl =

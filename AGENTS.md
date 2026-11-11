@@ -90,12 +90,12 @@ MVP 要包含：
 
 - 基础设施：`docker compose up -d`
 - 测试：`mvn test`
-- 控制面：`mvn -pl forgepilot-server spring-boot:run`（需要 PostgreSQL，监听 8080）
-- 执行服务：`mvn -pl forgepilot-execution spring-boot:run`（监听 8081，不连接业务库）
+- 控制面：`mvn -pl forgepilot-server spring-boot:run`（需要 PostgreSQL，监听 19080）
+- 执行服务：`mvn -pl forgepilot-execution spring-boot:run`（监听 19081，不连接业务库）
 - 前端依赖：`npm ci --prefix forgepilot-web`
 - 前端类型检查：`npm run typecheck --prefix forgepilot-web`
 - 前端构建：`npm run build --prefix forgepilot-web`
-- 前端开发：`npm run dev --prefix forgepilot-web`（5173，把 `/api` 代理到控制面）
+- 前端开发：`npm run dev --prefix forgepilot-web`（19173，把 `/api` 代理到控制面）
 
 源级别是 Java 17。Compose 中的口令只用于本机开发。
 

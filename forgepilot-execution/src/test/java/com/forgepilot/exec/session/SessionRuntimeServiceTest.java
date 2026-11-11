@@ -24,7 +24,7 @@ class SessionRuntimeServiceTest {
     @Test
     void startRevokesTokenWhenCodexUnavailable() {
         ProcessRuntime missing = unavailableRuntime();
-        InMemoryModelSessionProxy proxy = new InMemoryModelSessionProxy("127.0.0.1", 8081, 3600);
+        InMemoryModelSessionProxy proxy = new InMemoryModelSessionProxy("127.0.0.1", 19081, 3600);
         SessionRuntimeService service = new SessionRuntimeService(
                 new AgentAdapterRegistry(List.of(
                         new CodexCliAgentAdapter(missing, new SessionLogStore(temp.toString())),

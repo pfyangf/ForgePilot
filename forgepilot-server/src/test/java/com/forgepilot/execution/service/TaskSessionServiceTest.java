@@ -234,9 +234,9 @@ class TaskSessionServiceTest {
         when(agentRuntimePort.start(any())).thenReturn(new AgentRuntimePort.StartResult(
                 "s1",
                 "RUNNING",
-                "http://127.0.0.1:8081/v1",
+                "http://127.0.0.1:19081/v1",
                 "responses",
-                Map.of("wire_api", "responses", "base_url", "http://127.0.0.1:8081/v1"),
+                Map.of("wire_api", "responses", "base_url", "http://127.0.0.1:19081/v1"),
                 false,
                 null,
                 null));

@@ -1,12 +1,12 @@
 # 本机开发默认值，与 docker-compose.yml 一致。不是生产密钥。
 server:
-  port: 8080
+  port: 19080
 
 spring:
   application:
     name: forgepilot-server
   datasource:
-    url: ${FORGEPILOT_DB_URL:jdbc:postgresql://localhost:5432/forgepilot}
+    url: ${FORGEPILOT_DB_URL:jdbc:postgresql://localhost:19532/forgepilot}
     username: ${FORGEPILOT_DB_USERNAME:forgepilot}
     password: ${FORGEPILOT_DB_PASSWORD:forgepilot}
   flyway:
@@ -14,10 +14,10 @@ spring:
   data:
     redis:
       host: ${FORGEPILOT_REDIS_HOST:localhost}
-      port: ${FORGEPILOT_REDIS_PORT:6379}
+      port: ${FORGEPILOT_REDIS_PORT:19637}
   rabbitmq:
     host: ${FORGEPILOT_RABBIT_HOST:localhost}
-    port: ${FORGEPILOT_RABBIT_PORT:5672}
+    port: ${FORGEPILOT_RABBIT_PORT:19567}
     username: ${FORGEPILOT_RABBIT_USERNAME:forgepilot}
     password: ${FORGEPILOT_RABBIT_PASSWORD:forgepilot}
 
@@ -60,7 +60,7 @@ forgepilot:
       delay-ms: 60000
   minio:
     enabled: ${FORGEPILOT_MINIO_ENABLED:false}
-    endpoint: ${FORGEPILOT_MINIO_ENDPOINT:http://localhost:9000}
+    endpoint: ${FORGEPILOT_MINIO_ENDPOINT:http://localhost:19000}
     access-key: ${FORGEPILOT_MINIO_ACCESS_KEY:forgepilot}
     secret-key: ${FORGEPILOT_MINIO_SECRET_KEY:forgepilot-dev}
     bucket: ${FORGEPILOT_MINIO_BUCKET:forgepilot}
@@ -74,7 +74,7 @@ forgepilot:
       enabled: ${FORGEPILOT_DOCKER_ALLOWLIST_NETWORK:false}
       name: ${FORGEPILOT_DOCKER_ALLOWLIST_NETWORK_NAME:forgepilot-egress}
   execution:
-    base-url: ${FORGEPILOT_EXECUTION_URL:http://localhost:8081}
+    base-url: ${FORGEPILOT_EXECUTION_URL:http://localhost:19081}
     heartbeat-timeout-seconds: ${FORGEPILOT_NODE_HEARTBEAT_TIMEOUT:45}
   internal-api:
     # 面向执行面的身份由部署环境注入，不复用用户 JWT，也不在仓库里放共享密钥。
