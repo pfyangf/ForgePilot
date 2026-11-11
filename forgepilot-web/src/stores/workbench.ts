@@ -308,7 +308,7 @@ export const useWorkbenchStore = defineStore('workbench', () => {
     mapped.unsupported = detail.unsupported
     mapped.evidenceNote =
       detail.task.status === 'WAITING_APPROVAL'
-        ? '审核通过只改任务状态，不会自动合并。Draft MR 由平台 verify/retry-delivery 创建。' +
+        ? '审核通过只改任务状态，不会自动合并。Draft 合并请求由平台 verify/retry-delivery 创建。' +
           (detail.testFileChangeHook ? ` 测试文件变更钩子：${detail.testFileChangeHook}` : '')
         : '平台验证/交付与 Session 启动已接通；无 Codex 时 start 返回 NOT_AVAILABLE，不会假装编码完成。'
     try {

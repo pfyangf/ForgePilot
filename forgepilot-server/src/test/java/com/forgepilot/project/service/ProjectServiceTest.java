@@ -103,6 +103,37 @@ class ProjectServiceTest {
     }
 
     @Test
+    void githubCloneUrlIsStoredAsGithubEvenIfProviderOmittedOrGitlab() {
+        AuthUser admin = user(ADMIN, TENANT, "TENANT_ADMIN");
+        when(projectMapper.selectById(PROJECT)).thenReturn(project(PROJECT, TENANT));
+        when(projectRepositoryMapper.selectCount(any(LambdaQueryWrapper.class))).thenReturn(0L);
+        when(projectRepositoryMapper.insert(any(ProjectRepository.class))).thenReturn(1);
+
+        ProjectService.RepositoryView omitted = service.addRepository(
+                admin,
+                PROJECT,
+                new AddRepositoryRequest(
+                        "demo99",
+                        "https://github.com/pfyangf/forgepilot-demo99.git",
+                        "demo99",
+                        "main",
+                        null));
+        assertThat(omitted.providerType()).isEqualTo("GITHUB");
+
+        ProjectService.RepositoryView ssh = service.addRepository(
+                admin,
+                PROJECT,
+                new AddRepositoryRequest(
+                        "demo99-ssh",
+                        "git@github.com:pfyangf/forgepilot-demo99.git",
+                        "demo99-ssh",
+                        "main",
+                        "GITLAB"));
+        assertThat(ssh.providerType()).isEqualTo("GITHUB");
+        assertThat(ssh.cloneUrl()).isEqualTo("git@github.com:pfyangf/forgepilot-demo99.git");
+    }
+
+    @Test
     void rejectsUnsafeLocalDirectoryName() {
         AuthUser admin = user(ADMIN, TENANT, "TENANT_ADMIN");
         when(projectMapper.selectById(PROJECT)).thenReturn(project(PROJECT, TENANT));

@@ -4,6 +4,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Function;
 import org.springframework.stereotype.Component;
 
 /**
@@ -19,7 +20,8 @@ public class MultiRepoWorkspaceCheckout {
         this.git = git;
     }
 
-    public PreparedWorkspace prepare(String storageRoot, String taskId, List<FrozenRepo> frozenRepos, String askPassToken) {
+    public PreparedWorkspace prepare(
+            String storageRoot, String taskId, List<FrozenRepo> frozenRepos, Function<FrozenRepo, String> askPassTokens) {
         String taskRoot = layout.taskRoot(storageRoot, taskId);
         Path root = Path.of(taskRoot);
         try {
@@ -30,6 +32,7 @@ public class MultiRepoWorkspaceCheckout {
         }
         List<PreparedCheckout> checkouts = new ArrayList<>();
         for (FrozenRepo repo : frozenRepos) {
+            String askPassToken = askPassTokens == null ? null : askPassTokens.apply(repo);
             Path mirror = Path.of(layout.mirror(storageRoot, repo.projectRepositoryId()));
             git.mirrorFetch(mirror, repo.cloneUrl(), askPassToken);
             Path checkout = Path.of(layout.checkout(taskRoot, repo.localDirectoryName()));

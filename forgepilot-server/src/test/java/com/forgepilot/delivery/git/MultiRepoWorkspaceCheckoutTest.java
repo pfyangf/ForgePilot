@@ -28,7 +28,7 @@ class MultiRepoWorkspaceCheckoutTest {
                                 "repoA", "api", remoteA.toUri().toString(), "master", null, "GITLAB", null),
                         new MultiRepoWorkspaceCheckout.FrozenRepo(
                                 "repoB", "web", remoteB.toUri().toString(), "master", null, "GITLAB", null)),
-                null);
+                repo -> null);
 
         assertThat(prepared.root().resolve("api/a.txt")).exists();
         assertThat(prepared.root().resolve("web/b.txt")).exists();

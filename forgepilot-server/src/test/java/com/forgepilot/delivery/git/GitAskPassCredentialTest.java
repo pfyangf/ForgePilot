@@ -40,4 +40,23 @@ class GitAskPassCredentialTest {
         assertThat(String.join(" ", cmd)).doesNotContain(issued.token());
         assertThat(cmd.stream().noneMatch(p -> p.contains(issued.token()))).isTrue();
     }
+
+    @Test
+    void askPassTokenForSelectsHostTokenAndIgnoresFileRemotes() {
+        InMemoryGitCredentialService creds = new InMemoryGitCredentialService(600, "gl-secret", "gh-secret");
+        assertThat(creds.askPassTokenFor("https://github.com/pfyangf/forgepilot-demo99.git"))
+                .isEqualTo("gh-secret");
+        assertThat(creds.askPassTokenFor("git@github.com:pfyangf/forgepilot-demo99.git")).isEqualTo("gh-secret");
+        assertThat(creds.askPassTokenFor("https://gitlab.example.com/group/repo.git")).isEqualTo("gl-secret");
+        assertThat(creds.askPassTokenFor("file:///tmp/demo.git")).isNull();
+
+        InMemoryGitCredentialService empty = new InMemoryGitCredentialService(600);
+        empty.requireAskPassTokenForPush("file:///tmp/demo.git");
+        assertThatThrownBy(() -> empty.requireAskPassTokenForPush("https://github.com/pfyangf/forgepilot-demo99.git"))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("FORGEPILOT_GITHUB_TOKEN");
+        assertThatThrownBy(() -> empty.requireAskPassTokenForPush("https://gitlab.example.com/group/repo.git"))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("FORGEPILOT_GITLAB_TOKEN");
+    }
 }

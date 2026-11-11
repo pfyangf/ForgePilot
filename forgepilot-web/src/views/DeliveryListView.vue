@@ -1,7 +1,7 @@
 <template>
   <el-card>
     <template #header>测试与交付</template>
-    <p>审核与验证证据仍挂在任务上。平台不会自动合并 Draft MR。</p>
+    <p>审核与验证证据仍挂在任务上。平台不会自动合并 Draft 合并请求。</p>
     <el-table v-loading="store.loading" :data="approvalTasks" @row-click="openTask">
       <el-table-column prop="title" label="任务" />
       <el-table-column prop="status" label="状态" width="180" />

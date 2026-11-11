@@ -199,7 +199,8 @@ sudo chown -R "$USER":"$USER" /var/lib/forgepilot
 
 可选、此刻不必填：
 
-- `FORGEPILOT_GITLAB_TOKEN`：没有它时，非 `file://` 远端的 Draft MR 会失败，登录和工作台不受影响
+- `FORGEPILOT_GITLAB_TOKEN`：GitLab 非 `file://` 远端的推送和 Draft MR 需要它；没有时登录和工作台不受影响
+- `FORGEPILOT_GITHUB_TOKEN`：GitHub 推送和 Draft PR 需要它（公开仓库克隆可以不填）。请使用有 `repo` 权限的 Personal Access Token；不要把本机 `gh` 登录令牌拷到服务器。没有它时登录和工作台不受影响
 - 模型目录里的非占位密钥：没有它时不会假装编码成功
 - 本机 `codex` CLI：没有它时启动编码会话会进入 `NOT_AVAILABLE` / `WAITING_USER`
 
@@ -307,7 +308,7 @@ Nginx 没有把 `/api/` 反代到 `127.0.0.1:19080`，或前端不是通过 `191
 3 Mbps 大约是每秒 0.375 MB。只拉 PostgreSQL 和 Redis 的 Alpine 镜像、Maven 依赖和 npm 依赖，整体常要半小时以上。这是带宽限制，不是程序卡死。
 
 **想验证真实编码怎么办**  
-需要另准备更大的机器：安装 `codex` CLI、在模型目录写入非占位密钥、配置可用的 GitLab token，并让编码跑在容器里。不要在这台 2G 机器上做这一步。
+需要另准备更大的机器：安装 `codex` CLI、在模型目录写入非占位密钥、配置可用的 GitLab 或 GitHub token，并让编码跑在容器里。不要在这台 2G 机器上做这一步。
 
 ## 11. 停止与更新
 

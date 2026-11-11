@@ -48,7 +48,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 /**
- * 本机/开发用的验证与平台交付编排。不假装 Codex 已执行；只基于冻结仓库工作区跑项目命令并推送 Draft MR。
+ * 本机/开发用的验证与平台交付编排。不假装 Codex 已执行；只基于冻结仓库工作区跑项目命令并推送 Draft 合并请求。
  */
 @Service
 public class TaskVerifyDeliveryService {
@@ -133,14 +133,12 @@ public class TaskVerifyDeliveryService {
         if (frozen.isEmpty()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "任务没有冻结仓库集合");
         }
-        String askPass = issueAskPass(task.getProjectId(), frozen);
-
         String from = task.getStatus();
         task.setStatus("VERIFYING");
         codingTaskMapper.updateById(task);
         recordHistory(taskId, from, "VERIFYING", "开始平台验证", user.userId());
 
-        PreparedWorkspace workspace = workspaceCheckout.prepare(storageRoot, taskId, frozen, askPass);
+        PreparedWorkspace workspace = workspaceCheckout.prepare(storageRoot, taskId, frozen, this::askPassFor);
         Workspace ws = persistWorkspace(user, task, workspace);
 
         // 把冻结 baseSha 回写（首次检出）
@@ -229,7 +227,7 @@ public class TaskVerifyDeliveryService {
                     workspace.root().toString());
         }
 
-        DeliveryOutcome delivery = deliverChangedRepos(user, task, workspace, askPass);
+        DeliveryOutcome delivery = deliverChangedRepos(user, task, workspace);
         return new VerifyDeliveryResult(
                 taskId,
                 delivery.taskStatus(),
@@ -250,10 +248,9 @@ public class TaskVerifyDeliveryService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "当前状态不能重试交付");
         }
         List<FrozenRepo> frozen = loadFrozen(taskId);
-        String askPass = issueAskPass(task.getProjectId(), frozen);
-        PreparedWorkspace workspace = workspaceCheckout.prepare(storageRoot, taskId, frozen, askPass);
+        PreparedWorkspace workspace = workspaceCheckout.prepare(storageRoot, taskId, frozen, this::askPassFor);
         persistWorkspace(user, task, workspace);
-        DeliveryOutcome delivery = deliverChangedRepos(user, task, workspace, askPass);
+        DeliveryOutcome delivery = deliverChangedRepos(user, task, workspace);
         return new VerifyDeliveryResult(
                 taskId,
                 delivery.taskStatus(),
@@ -267,7 +264,7 @@ public class TaskVerifyDeliveryService {
                 workspace.root().toString());
     }
 
-    private DeliveryOutcome deliverChangedRepos(AuthUser user, CodingTask task, PreparedWorkspace workspace, String askPass) {
+    private DeliveryOutcome deliverChangedRepos(AuthUser user, CodingTask task, PreparedWorkspace workspace) {
         String branch = task.getBranchName() == null || task.getBranchName().isBlank()
                 ? "fp/" + task.getId()
                 : task.getBranchName();
@@ -322,12 +319,13 @@ public class TaskVerifyDeliveryService {
 
             try {
                 String headSha = git.revParse(checkout.path(), "HEAD");
-                git.push(checkout.path(), "origin", branch, askPass);
+                gitCredentialPort.requireAskPassTokenForPush(checkout.cloneUrl());
+                git.push(checkout.path(), "origin", branch, askPassFor(checkout.cloneUrl()));
 
                 String idempotencyKey = task.getId() + ":" + checkout.projectRepositoryId();
                 MergeRequestView view;
                 if (checkout.cloneUrl() != null && checkout.cloneUrl().startsWith("file:")) {
-                    // 本机 file:// 远端：不调用真实 GitLab，签发合成 Draft MR，便于无 GitLab 时验收交付编排。
+                    // 本机 file:// 远端：不调用真实 GitLab，签发合成 Draft 合并请求，便于无远程托管时验收交付编排。
                     view = new MergeRequestView(
                             checkout.projectRepositoryId(),
                             "local-" + checkout.localDirectoryName(),
@@ -431,13 +429,13 @@ public class TaskVerifyDeliveryService {
         if (needed == 0) {
             // 无改动也进入待审核（全部 MR 齐了：需要 0 条）
             toStatus = "WAITING_APPROVAL";
-            message = "验证通过且无改动仓库，无需 Draft MR，进入待审核";
+            message = "验证通过且无改动仓库，无需 Draft 合并请求，进入待审核";
         } else if (failures.isEmpty() && mrs.size() >= needed) {
             toStatus = "WAITING_APPROVAL";
-            message = "验证通过，全部需要的 Draft MR 已创建或命中";
+            message = "验证通过，全部需要的 Draft 合并请求已创建或命中";
         } else if (!failures.isEmpty()) {
             toStatus = "WAITING_USER";
-            message = "部分仓库推送/MR 失败，已成功的 MR 保留，可 retry-delivery：" + String.join("; ", failures);
+            message = "部分仓库推送或创建 Draft 合并请求失败，已成功的请求保留，可 retry-delivery：" + String.join("; ", failures);
         } else {
             toStatus = "WAITING_USER";
             message = "交付未完成";
@@ -486,27 +484,12 @@ public class TaskVerifyDeliveryService {
     }
 
 
-    private String issueAskPass(String projectId, List<FrozenRepo> frozen) {
-        java.util.LinkedHashSet<String> hosts = new java.util.LinkedHashSet<>();
-        boolean needsCred = false;
-        for (FrozenRepo repo : frozen) {
-            String url = repo.cloneUrl();
-            if (url == null || url.isBlank() || url.startsWith("file:")) {
-                continue;
-            }
-            needsCred = true;
-            try {
-                java.net.URI uri = java.net.URI.create(url);
-                if (uri.getHost() != null) {
-                    hosts.add(uri.getHost());
-                }
-            } catch (Exception ignored) {
-            }
-        }
-        if (!needsCred) {
-            return null;
-        }
-        return gitCredentialPort.issue(projectId, hosts).token();
+    private String askPassFor(FrozenRepo repo) {
+        return askPassFor(repo == null ? null : repo.cloneUrl());
+    }
+
+    private String askPassFor(String cloneUrl) {
+        return gitCredentialPort.askPassTokenFor(cloneUrl);
     }
 
     private List<FrozenRepo> loadFrozen(String taskId) {

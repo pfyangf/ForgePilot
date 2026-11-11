@@ -10,6 +10,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.forgepilot.delivery.git.InMemoryGitCredentialService;
 import com.forgepilot.delivery.git.LocalGitSupport;
 import com.forgepilot.delivery.git.MultiRepoWorkspaceCheckout;
 import com.forgepilot.execution.domain.AgentEvent;
@@ -112,6 +113,7 @@ class TaskSessionServiceTest {
                         45),
                 new InMemorySessionLogStream(),
                 new OutboxService(mock(OutboxMapper.class), new ObjectMapper(), new InMemoryControlEventPublisher()),
+                new InMemoryGitCredentialService(900),
                 temp.resolve("storage").toString());
         when(executionNodeMapper.selectList(any(LambdaQueryWrapper.class))).thenReturn(List.of());
 

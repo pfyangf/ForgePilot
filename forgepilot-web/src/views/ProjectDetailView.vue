@@ -95,7 +95,7 @@
           <el-input v-model="repoForm.displayName" />
         </el-form-item>
         <el-form-item label="Clone URL" required>
-          <el-input v-model="repoForm.cloneUrl" placeholder="https://gitlab.example.com/group/repo.git" />
+          <el-input v-model="repoForm.cloneUrl" placeholder="https://github.com/owner/repo.git 或 https://gitlab.example.com/group/repo.git" />
         </el-form-item>
         <el-form-item label="检出目录名" required>
           <el-input v-model="repoForm.localDirectoryName" placeholder="如 pay-api，不能含路径" />
@@ -106,7 +106,7 @@
         <el-form-item label="托管类型">
           <el-select v-model="repoForm.providerType" style="width: 100%">
             <el-option label="GitLab" value="GITLAB" />
-            <el-option label="GitHub（仅登记）" value="GITHUB" />
+            <el-option label="GitHub" value="GITHUB" />
           </el-select>
         </el-form-item>
       </el-form>
@@ -195,6 +195,23 @@ const repoForm = reactive({
   defaultBranch: 'main',
   providerType: 'GITLAB',
 })
+function detectProvider(url: string): 'GITHUB' | 'GITLAB' {
+  const value = url.trim().toLowerCase()
+  if (value.includes('github.com')) {
+    return 'GITHUB'
+  }
+  return 'GITLAB'
+}
+
+watch(
+  () => repoForm.cloneUrl,
+  (url) => {
+    if (url && url.trim()) {
+      repoForm.providerType = detectProvider(url)
+    }
+  },
+)
+
 const reqForm = reactive({
   title: '',
   description: '',

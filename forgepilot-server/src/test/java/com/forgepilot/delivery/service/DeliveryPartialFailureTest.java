@@ -189,7 +189,7 @@ class DeliveryPartialFailureTest {
                                         null,
                                         "GITLAB",
                                         null)),
-                        null);
+                        repo -> null);
         Files.writeString(prepared.root().resolve("api/src/main/A.java"), "class A { int x; }");
         Files.writeString(prepared.root().resolve("web/src/test/BTest.java"), "class BTest { void t(){} }");
         freezes.put("repoA", freezeWithSha("repoA", prepared.checkouts().get(0).baseSha()));

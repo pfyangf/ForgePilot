@@ -22,6 +22,7 @@ import org.springframework.stereotype.Component;
 public class GitLabGitHostingAdapter implements GitHostingPort {
 
     public static final String PROVIDER_TYPE = "GITLAB";
+    public static final String TOKEN_REQUIRED_MESSAGE = "创建 GitLab Draft MR 需要配置 FORGEPILOT_GITLAB_TOKEN";
 
     private final GitLabApiClient apiClient;
     private final ObjectMapper objectMapper;
@@ -90,6 +91,7 @@ public class GitLabGitHostingAdapter implements GitHostingPort {
 
     @Override
     public BranchView ensureBranch(EnsureBranch command) {
+        requireToken("创建 GitLab 分支需要配置 FORGEPILOT_GITLAB_TOKEN");
         RepositoryRef ref = command.repository();
         String path = "/api/v4/projects/" + projectPath(ref) + "/repository/branches/" + enc(command.branchName());
         GitLabApiClient.Response existing = exchange(ref, "GET", path, null, Map.of());
@@ -115,6 +117,7 @@ public class GitLabGitHostingAdapter implements GitHostingPort {
 
     @Override
     public MergeRequestView createOrGetDraft(CreateDraft command) {
+        requireToken(TOKEN_REQUIRED_MESSAGE);
         RepositoryRef ref = command.repository();
         String listPath = "/api/v4/projects/" + projectPath(ref) + "/merge_requests";
         GitLabApiClient.Response listed =
@@ -186,6 +189,14 @@ public class GitLabGitHostingAdapter implements GitHostingPort {
                 sha,
                 idempotencyKey,
                 state);
+    }
+
+    private String requireToken(String message) {
+        String token = tokenSupplier.get();
+        if (token == null || token.isBlank()) {
+            throw new IllegalStateException(message);
+        }
+        return token;
     }
 
     private JsonNode require2xx(GitLabApiClient.Response response) {

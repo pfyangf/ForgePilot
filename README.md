@@ -4,7 +4,7 @@ ForgePilot（云端 AI Coding 平台）以需求为入口，调度 AI Agent 在�
 
 一个项目关联多个 Git 仓库。一次任务使用一个工作区目录，平台把这些仓库都检出到该目录里。MVP 的 Agent 运行时是容器内的 Codex CLI。模型长期密钥留在执行节点的代理侧。
 
-当前仓库在 `dev` 分支推进 V1.2：**软件侧 MVP 能力已基本齐备**（登录/JWT、工作台、项目/成员、多仓库、需求、任务、目录与规约、操作记录、GitLab 交付、Session/Codex 适配、节点与 ContainerRuntime、日志流与归档、Outbox、保留策略、进程 fail-closed）。无本机 `codex` CLI、非占位 Provider 密钥、可用 GitLab token 时，不会假装编码成功；要跑通真实 Coding 还需这三样运行时依赖。
+当前仓库在 `dev` 分支推进 V1.2：**软件侧 MVP 能力已基本齐备**（登录/JWT、工作台、项目/成员、多仓库、需求、任务、目录与规约、操作记录、GitLab/GitHub 交付、Session/Codex 适配、节点与 ContainerRuntime、日志流与归档、Outbox、保留策略、进程 fail-closed）。无本机 `codex` CLI、非占位 Provider 密钥、可用 GitLab 或 GitHub token 时，不会假装编码成功；要跑通真实 Coding 还需这三样运行时依赖。
 
 ## 文档
 
@@ -85,7 +85,7 @@ Flyway `V3__local_demo_seed.sql` 写入下列账号，口令均为 `ForgePilot!d
 - `GET /api/v1/requirements/{id}`，`POST /api/v1/requirements/{id}/confirm-analysis`
 - `GET|POST /api/v1/requirements/{id}/tasks`
 - `GET /api/v1/tasks/{id}`，`POST /api/v1/tasks/{id}/cancel|abandon|approve`
-- `POST /api/v1/tasks/{id}/verify`、`POST /api/v1/tasks/{id}/retry-delivery`（冻结仓检出 + 工作区根命令验证 + 有改动仓库推送 `fp/{taskId}` / Draft MR；不假装 Codex）
+- `POST /api/v1/tasks/{id}/verify`、`POST /api/v1/tasks/{id}/retry-delivery`（冻结仓检出 + 工作区根命令验证 + 有改动仓库推送 `fp/{taskId}` / Draft 合并请求；不假装 Codex）
 - `POST /api/v1/tasks/{id}/start|retry|input|request-changes`，`GET /api/v1/tasks/{id}/session`（Task ≠ Session；规约快照；执行侧 `/v1/responses` 代理）
 - `GET /api/v1/nodes`，`POST /api/v1/internal/nodes/register|heartbeat|assign-next`；Session 日志 `GET .../sessions/{sid}/logs`（Redis Stream，失败回退内存；SSE 可选）
 - `GET /api/v1/tasks/{taskId}/archived-logs`；`POST .../sessions/{sessionId}/archive-logs`；`GET .../archived-log` 与 `.../meta`（MinIO/假存储）
@@ -103,7 +103,7 @@ Flyway `V5` 为演示科技写入了本地占位 Provider/Codex 工具和三层�
 
 1. 执行节点本机安装可用的 `codex` CLI（否则 start → `NOT_AVAILABLE` → `WAITING_USER`，绝不标完成）；
 2. 控制面模型目录写入**非占位** Provider 密钥（演示种子是 `PLACEHOLDER_*`）；
-3. 可用的 GitLab（或兼容）token，用于非 `file://` 远端的 Draft MR。
+3. 可用的 GitLab 或 GitHub token（`FORGEPILOT_GITLAB_TOKEN` / `FORGEPILOT_GITHUB_TOKEN`），用于非 `file://` 远端的推送和 Draft 合并请求。公开 GitHub 仓库可以不带 token 克隆；推送和 Draft PR 缺 token 时会明确失败。
 
 仍属增强而非阻塞本机验收的项：真实 Docker egress bridge/防火墙编排、生产级密钥托管/轮换、多节点容量调度策略细化、成员自助注册审批流。
 

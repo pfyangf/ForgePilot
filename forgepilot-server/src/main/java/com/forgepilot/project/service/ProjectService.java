@@ -8,11 +8,13 @@ import com.forgepilot.project.domain.ProjectRepository;
 import com.forgepilot.project.persistence.ProjectMapper;
 import com.forgepilot.project.persistence.ProjectMemberMapper;
 import com.forgepilot.project.persistence.ProjectRepositoryMapper;
+import com.forgepilot.delivery.git.GitRemoteUrl;
 import com.forgepilot.project.web.AddRepositoryRequest;
 import com.forgepilot.project.web.CreateProjectRequest;
 import com.forgepilot.system.activity.ActivityLogRecorder;
 import com.forgepilot.system.auth.AuthUser;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 import org.springframework.dao.DuplicateKeyException;
@@ -139,13 +141,14 @@ public class ProjectService {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "同一项目不能重复关联相同仓库地址");
         }
 
-        String provider = request.providerType() == null || request.providerType().isBlank()
-                ? "GITLAB"
-                : request.providerType().trim().toUpperCase();
+        String requested = request.providerType() == null || request.providerType().isBlank()
+                ? null
+                : request.providerType().trim().toUpperCase(Locale.ROOT);
+        String detected = GitRemoteUrl.detectProvider(cloneUrl);
+        String provider = detected != null ? detected : (requested == null ? "GITLAB" : requested);
         if (!"GITLAB".equals(provider) && !"GITHUB".equals(provider)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "providerType 仅支持 GITLAB 或 GITHUB");
         }
-        // MVP 只交付 GitLab 适配器；仍允许登记字段，不在此处伪造连通性。
         String branch = blankToNull(request.defaultBranch());
         if (branch == null) {
             branch = "main";

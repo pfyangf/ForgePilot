@@ -46,7 +46,7 @@
 
     <el-card v-else-if="task.status === 'WAITING_APPROVAL'" class="block">
       <template #header>任务级审核</template>
-      <p>审核通过只把任务标为 COMPLETED，不会自动合并。以下 Draft MR 由平台交付创建。</p>
+      <p>审核通过只把任务标为 COMPLETED，不会自动合并。以下 Draft 合并请求由平台交付创建。</p>
       <el-alert
         v-if="task.testFileChanges?.length"
         class="block"
@@ -55,9 +55,9 @@
         :closable="false"
         :title="'检测到测试文件变更：' + task.testFileChanges.join('；')"
       />
-      <el-table :data="task.mergeRequests" empty-text="还没有 Draft MR">
+      <el-table :data="task.mergeRequests" empty-text="还没有 Draft 合并请求">
         <el-table-column prop="directoryName" label="仓库目录" />
-        <el-table-column prop="url" label="MR" />
+        <el-table-column prop="url" label="合并请求" />
         <el-table-column prop="headSha" label="Head" width="140" />
       </el-table>
       <div class="row">

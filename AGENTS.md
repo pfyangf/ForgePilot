@@ -62,7 +62,7 @@ MVP 要包含：
 - 租户管理员维护本公司的编码工具目录和模型 Provider 目录。项目可设默认工具、Provider 和模型标识，有权限的成员可在任务上覆盖。
 - 平台、公司、项目三层规约与文档。规约在任务启动时合成并冻结进会话。这不是文档库或知识库检索。
 - 只追加的操作记录，以及据此生成日报的查询。不记录每次打开工作台。
-- GitLab 适配器。领域模型保持与 Git 托管厂商无关，以便以后加 GitHub。
+- GitLab 与 GitHub 适配器。领域模型保持与 Git 托管厂商无关。github.com 远端走 GitHub 适配器并创建 Draft PR。
 - 一个项目多条仓库连接。一次任务一个工作区目录，其中每个仓库一个检出。
 - 可选的单个前置任务。不要做 DAG 调度器。
 - Flyway 迁移，从第一天启用。
@@ -84,7 +84,7 @@ MVP 要包含：
 - 前端：Vue 3、TypeScript、Vite、Pinia、Vue Router、Element Plus、WebSocket。Diff 用轻量 Diff 查看器。
 - 控制面：Java 17、Spring Boot 3、MyBatis-Plus、Flyway。
 - 数据与消息：PostgreSQL 为权威数据源；Redis 用于缓存、锁、心跳和高频流；RabbitMQ 只承载控制/状态事件；MinIO 存大文件与产物。
-- 执行：Docker。MVP 的 Git 托管适配器是 GitLab。MVP 的 Agent 运行时是 Codex CLI。
+- 执行：Docker。Git 托管适配器支持 GitLab 与 GitHub。MVP 的 Agent 运行时是 Codex CLI。
 
 在仓库根目录：
 
@@ -222,7 +222,7 @@ Agent Execution Service 是独立进程，负责镜像与克隆、容器、Agent
 - Agent Adapter：声明是否支持交互输入、原生暂停、中断、事件流、工具事件、会话恢复和结构化结果。平台按声明的能力提供操作。第一个适配器是 OpenAI Codex CLI，由平台准备多仓库工作区和沙箱，CLI 在 Agent 容器内运行。Codex 的 MVP 声明不含原生暂停，也不把消息送进仍在运行的进程。`git push` 和 Draft MR 仍由平台在验证通过后执行。
 - 下一个适配器只留端口：OpenHands Agent Server（REST/WebSocket），以及 ACP 兼容 Agent。
 - Sandbox Provider：MVP 只实现 Docker。
-- Git/Integration Adapter：仓库、分支、Diff、MR/PR。MVP 实现 GitLab，接口保持可增加 GitHub。一次交付会对每个有改动的仓库各调用一次。
+- Git/Integration Adapter：仓库、分支、Diff、MR/PR。已实现 GitLab（Draft MR）与 GitHub（Draft PR）。一次交付会对每个有改动的仓库各调用一次。令牌分别使用 `FORGEPILOT_GITLAB_TOKEN` 与 `FORGEPILOT_GITHUB_TOKEN`，不得写入 remote URL 或操作记录。
 - Model Provider：租户管理员维护本公司目录，记录名称、类型、base URL、密文引用、是否启用、API 版本和上游协议。平台自身调用与 Agent 容器内调用分开。Agent 侧只拿到选定 Provider 的会话级模型代理，线路是 Responses。密钥不写入操作记录。
 
 执行面内部契约保持稳定：注册、心跳、启动、取消、事件、结果、产物。业务规则留在控制面。

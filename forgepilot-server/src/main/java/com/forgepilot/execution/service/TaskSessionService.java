@@ -1,6 +1,7 @@
 package com.forgepilot.execution.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.forgepilot.delivery.git.GitCredentialPort;
 import com.forgepilot.delivery.git.MultiRepoWorkspaceCheckout;
 import com.forgepilot.delivery.git.MultiRepoWorkspaceCheckout.FrozenRepo;
 import com.forgepilot.delivery.git.MultiRepoWorkspaceCheckout.PreparedWorkspace;
@@ -82,6 +83,7 @@ public class TaskSessionService {
     private final NodeRegistryService nodeRegistryService;
     private final SessionLogStream sessionLogStream;
     private final OutboxService outboxService;
+    private final GitCredentialPort gitCredentialPort;
     private final String storageRoot;
 
     public TaskSessionService(
@@ -104,6 +106,7 @@ public class TaskSessionService {
             NodeRegistryService nodeRegistryService,
             SessionLogStream sessionLogStream,
             OutboxService outboxService,
+            GitCredentialPort gitCredentialPort,
             @Value("${forgepilot.workspace.storage-root:${java.io.tmpdir}/forgepilot-workspaces}") String storageRoot) {
         this.codingTaskMapper = codingTaskMapper;
         this.agentSessionMapper = agentSessionMapper;
@@ -124,6 +127,7 @@ public class TaskSessionService {
         this.nodeRegistryService = nodeRegistryService;
         this.sessionLogStream = sessionLogStream;
         this.outboxService = outboxService;
+        this.gitCredentialPort = gitCredentialPort;
         this.storageRoot = storageRoot;
     }
 
@@ -276,7 +280,8 @@ public class TaskSessionService {
         if (frozen.isEmpty()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "任务没有冻结仓库集合");
         }
-        PreparedWorkspace prepared = workspaceCheckout.prepare(storageRoot, task.getId(), frozen, null);
+        PreparedWorkspace prepared = workspaceCheckout.prepare(
+                storageRoot, task.getId(), frozen, repo -> gitCredentialPort.askPassTokenFor(repo.cloneUrl()));
         Workspace workspace = ensureWorkspaceRow(user, task, prepared);
 
         String fromStatus = task.getStatus();

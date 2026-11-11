@@ -129,9 +129,14 @@ public class LocalGitSupport {
             Path askPass = null;
             if (askPassToken != null && !askPassToken.isBlank()) {
                 askPass = Files.createTempFile("fp-askpass-", ".sh");
+                String escaped = askPassToken.replace("'", "'\\''");
                 Files.writeString(
                         askPass,
-                        "#!/bin/sh\necho '" + askPassToken.replace("'", "'\\''") + "'\n",
+                        "#!/bin/sh\n"
+                                + "case \"$1\" in\n"
+                                + "  *[Uu]sername*) echo 'x-access-token' ;;\n"
+                                + "  *) echo '" + escaped + "' ;;\n"
+                                + "esac\n",
                         StandardCharsets.UTF_8);
                 askPass.toFile().setExecutable(true);
                 pb.environment().put("GIT_ASKPASS", askPass.toString());

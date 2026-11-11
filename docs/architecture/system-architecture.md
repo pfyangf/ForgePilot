@@ -65,7 +65,7 @@ ForgePilot 在多个公司租户上调度 AI Agent 完成代码修改。公司�
 2. 业务控制层：Spring Boot 控制面。
 3. Agent 执行层：执行节点上的 Execution Service、模型代理和 Docker。
 4. 基础设施层：PostgreSQL、Redis、RabbitMQ、MinIO。
-5. 外部系统：Git 托管和模型 Provider。MVP 的 Git 适配器实现连接 GitLab。
+5. 外部系统：Git 托管和模型 Provider。Git 适配器实现连接 GitLab 与 GitHub。
 
 ## 2.2 逻辑结构
 
@@ -554,9 +554,9 @@ public interface GitHostingPort {
 
 `RepositoryRef`、`MergeRequestView` 是平台类型。GitLab 的项目 ID、MR IID 只出现在 GitLab 适配器内部，并作为外部 ID 存档。
 
-MVP 提供 `GitLabGitHostingAdapter`。GitHub 适配器以后实现同一端口并创建 Draft PR。ForgePilot 仓库和作者的其他代码托管在 GitHub 上，所以端口不能泄漏 GitLab 类型；MVP 验收仍只要求 GitLab 适配器可用。
+已提供 `GitLabGitHostingAdapter` 与 `GitHubGitHostingAdapter`，由 `RoutingGitHostingAdapter` 按仓库地址和 `providerType` 路由。github.com 的 https / git@ 地址走 GitHub 并创建 Draft PR；其他远端默认走 GitLab。平台类型不泄漏厂商 SDK。令牌分别来自 `FORGEPILOT_GITLAB_TOKEN` 与 `FORGEPILOT_GITHUB_TOKEN`，只经请求头或 `GIT_ASKPASS` 传递。
 
-平台调用该端口完成 Draft MR。Agent 不调用它。`git push` 由执行服务使用短时凭证完成，成功后再由控制面调用 `createOrGetDraft`。
+平台调用该端口完成 Draft 合并请求（GitLab MR 或 GitHub PR）。Agent 不调用它。`git push` 使用对应托管的配置令牌经 `GIT_ASKPASS` 完成，成功后再由控制面调用 `createOrGetDraft`。`file://` 远端无需令牌。
 
 ## 9.2 模型
 
@@ -650,6 +650,7 @@ MVP 不引入 Monaco Editor 和 xterm.js。不实现交互式 PTY。
 
 外部
 ├── GitLab
+├── GitHub
 └── 模型 Provider
 ```
 
@@ -717,7 +718,7 @@ Token 数量只有在 Provider 或代理返回时才记录。指标缺失时留�
 | ADR-009 | 执行隔离 | Docker，非特权，出站默认拒绝 |
 | ADR-010 | 工作区隔离 | 节点上按仓库的 bare mirror，只读共享。每任务一个目录，其内每个仓库一次 `git clone`（可用 `--reference`）。不以 Git Worktree 隔离 |
 | ADR-011 | 工作流 | 代码内状态机。可选单个前置任务。MVP 无 DAG 调度器 |
-| ADR-012 | 代码托管 | MVP 交付 GitLab 适配器。平台类型不依赖 GitLab |
+| ADR-012 | 代码托管 | 交付 GitLab 与 GitHub 适配器。平台类型不依赖厂商 SDK |
 | ADR-013 | 任务状态权威 | 控制面 PostgreSQL。Agent 与执行服务不能直接改最终状态 |
 | ADR-014 | 交付顺序 | 验证通过后，对每个有改动的仓库推送 `fp/{taskId}` 并各创建一条 Draft MR。全部需要的 MR 齐了才进入一次任务级审核。部分失败保留已成功的 MR 并进入 `WAITING_USER`。通过即完成，不自动合并。这不是跨远端合并 |
 | ADR-015 | 多 Agent | MVP 不实现协作网络 |
@@ -727,7 +728,7 @@ Token 数量只有在 Provider 或代理返回时才记录。指标缺失时留�
 | ADR-019 | 执行节点 | 节点注册容量和标签并心跳。调度遵守全局和单节点并发。排队在 PostgreSQL。节点死亡则 Session `INTERRUPTED` |
 | ADR-020 | 产物访问 | 执行服务上传 MinIO。控制面和 Web 不 SSH、不挂载执行节点磁盘。运行中的尾部才经控制面代理 |
 | ADR-021 | 认证与租户 | 本地用户名密码 + JWT。GitLab OAuth 以后再做。租户是公司。项目是公司内的团队。普通用户只属于一个租户。四种角色。不跨租户共享 |
-| ADR-022 | Git 抽象 | 领域只依赖 `GitHostingPort`。GitHub 作为后续适配器，创建 Draft PR |
+| ADR-022 | Git 抽象 | 领域只依赖 `GitHostingPort`。GitLab 创建 Draft MR，GitHub 创建 Draft PR |
 | ADR-023 | 工作区恢复 | 周期性把含未提交内容的隐藏 ref 或 `git bundle` 存到 Git 远端和/或 MinIO。新节点据此恢复 |
 | ADR-024 | 后端打包 | 控制面单应用四包：`system`、`project`、`execution`、`delivery`。边界稳定前不拆 Maven 业务模块。执行面保持独立进程 |
 | ADR-025 | 迁移 | 从第一天使用 Flyway |
@@ -777,7 +778,6 @@ ADR-010 取代 V1.0 的「Git Worktree」。ADR-014 取代「先审批再创建 
 在 MVP 闭环稳定之后，架构才考虑：
 
 - 多个执行节点上的调度策略细化，包括按项目的并发上限。
-- GitHub 适配器。
 - 其他 Sandbox Provider。
 - 可信的用量统计。
 - 把四个包拆成独立部署单元。只有在包边界被真实迭代证明稳定之后才做。

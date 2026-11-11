@@ -92,3 +92,5 @@ forgepilot:
     token-ttl-seconds: ${FORGEPILOT_GIT_TOKEN_TTL_SECONDS:900}
   gitlab:
     token: ${FORGEPILOT_GITLAB_TOKEN:}
+  github:
+    token: ${FORGEPILOT_GITHUB_TOKEN:}
