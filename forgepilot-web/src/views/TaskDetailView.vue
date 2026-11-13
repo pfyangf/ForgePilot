@@ -159,7 +159,7 @@
       </el-card>
       <el-card class="span-2" shadow="never">
         <template #header>配置</template>
-        <p class="hint">选择仓库时必须指定源分支和新建工作分支。默认按需求号生成，例如 fp/REQ-DEMO99-3；若冲突会带上任务号后缀。Agent 不得自行另起分支名。</p>
+        <p class="hint fp-help-inline">选择仓库时必须指定源分支和新建工作分支。默认按需求号生成，例如 fp/REQ-DEMO99-3；若冲突会带上任务号后缀。Agent 不得自行另起分支名。<HelpTip :text="HELP.repoBranch" /></p>
         <BindChain
           :tools="tools"
           :providers="providers"
@@ -257,6 +257,8 @@
 </template>
 
 <script setup lang="ts">
+import HelpTip from '@/components/HelpTip.vue'
+import { HELP } from '@/domain/help'
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { apiFetch, getAccessToken } from '@/api/http'
 import { useRouter } from 'vue-router'

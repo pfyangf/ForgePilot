@@ -66,19 +66,19 @@ async function submit() {
   display: grid;
   place-items: center;
   padding: var(--fp-space-5);
-  background-color: #0b1020;
+  background-color: var(--fp-color-bg);
   background-image:
-    radial-gradient(700px 360px at 20% 0%, rgba(76, 125, 255, 0.22), transparent 60%),
-    radial-gradient(520px 240px at 90% 10%, rgba(61, 220, 151, 0.08), transparent 55%),
-    linear-gradient(180deg, #10182c 0%, #0b1020 100%);
+    radial-gradient(700px 360px at 20% 0%, var(--fp-color-glow-primary), transparent 60%),
+    radial-gradient(520px 240px at 90% 10%, var(--fp-color-glow-success), transparent 55%),
+    linear-gradient(180deg, var(--fp-color-content-start) 0%, var(--fp-color-bg) 100%);
 }
 
 .card {
   width: min(400px, 100%);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--fp-color-border);
   border-radius: 16px;
-  background: linear-gradient(180deg, rgba(27, 36, 56, 0.94), rgba(17, 24, 42, 0.96));
-  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.35);
+  background: var(--fp-surface-gradient);
+  box-shadow: var(--fp-shadow-dialog);
 }
 
 .card :deep(.el-card__body) {

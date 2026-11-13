@@ -1,13 +1,19 @@
 import { createPinia } from 'pinia'
 import ElementPlus from 'element-plus'
-import zhCn from 'element-plus/es/locale/lang/zh-cn'
 import 'element-plus/dist/index.css'
 import 'element-plus/theme-chalk/dark/css-vars.css'
 import './styles/base.css'
 import { createApp } from 'vue'
 import App from './App.vue'
 import router from './router'
+import { applyAppLocale, elementPlusLocale } from '@/domain/locale'
+import { applyThemeClass, readStoredTheme } from '@/domain/theme'
 
-document.documentElement.classList.add('dark')
+applyAppLocale()
+applyThemeClass(readStoredTheme(localStorage), document.documentElement)
 
-createApp(App).use(createPinia()).use(router).use(ElementPlus, { locale: zhCn }).mount('#app')
+createApp(App)
+  .use(createPinia())
+  .use(router)
+  .use(ElementPlus, { locale: elementPlusLocale })
+  .mount('#app')

@@ -1,4 +1,5 @@
 <template>
+  <el-config-provider :locale="elementPlusLocale">
   <router-view v-if="route.name === 'login'" />
   <el-container v-else class="shell">
     <el-aside class="aside" :class="{ 'aside--collapsed': collapsed }" :width="asideWidth">
@@ -47,6 +48,19 @@
       <el-header class="header" height="52px">
         <span class="header__title">云端 AI Coding 研发平台</span>
         <div class="header__actions" v-if="auth.user">
+          <button
+            class="header__link header__theme"
+            type="button"
+            :aria-label="theme === 'light' ? '切换到深色主题' : '切换到浅色主题'"
+            :title="theme === 'light' ? '深色主题' : '浅色主题'"
+            @click="toggleTheme"
+          >
+            <el-icon>
+              <Sunny v-if="theme === 'dark'" />
+              <Moon v-else />
+            </el-icon>
+          </button>
+          <HelpTip :text="HELP.themeSwitch" />
           <el-popover placement="bottom-end" :width="320" trigger="click">
             <template #reference>
               <button class="header__link header__notice" type="button">
@@ -89,6 +103,7 @@
       </el-main>
     </el-container>
   </el-container>
+  </el-config-provider>
 </template>
 
 <script setup lang="ts">
@@ -104,12 +119,18 @@ import {
   Fold,
   Folder,
   MagicStick,
+  Moon,
   Notebook,
   Odometer,
   Setting,
+  Sunny,
   Upload,
 } from '@element-plus/icons-vue'
+import HelpTip from '@/components/HelpTip.vue'
+import { HELP } from '@/domain/help'
+import { elementPlusLocale } from '@/domain/locale'
 import { visibleSidebarItems } from '@/domain/menus'
+import { useTheme } from '@/composables/useTheme'
 import { useAuthStore } from '@/stores/auth'
 
 const COLLAPSE_KEY = 'fp.sidebar.collapsed'
@@ -118,6 +139,7 @@ const route = useRoute()
 const router = useRouter()
 const auth = useAuthStore()
 const collapsed = ref(false)
+const { theme, toggleTheme } = useTheme()
 
 const iconMap: Record<string, object> = {
   Odometer,
@@ -189,9 +211,9 @@ async function logout() {
   width: 208px !important;
   max-width: 208px;
   min-width: 208px;
-  background: linear-gradient(180deg, #0c1324 0%, #0a0f1c 100%);
+  background: linear-gradient(180deg, var(--fp-color-sidebar-start) 0%, var(--fp-color-sidebar) 100%);
   color: var(--fp-color-sidebar-text);
-  border-right: 1px solid rgba(255, 255, 255, 0.06);
+  border-right: 1px solid var(--fp-color-sidebar-border);
   overflow: hidden;
   box-sizing: border-box;
   transition: width 0.2s ease, flex-basis 0.2s ease, max-width 0.2s ease, min-width 0.2s ease;
@@ -210,7 +232,7 @@ async function logout() {
   align-items: center;
   gap: 8px;
   padding: 0 12px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  border-bottom: 1px solid var(--fp-color-sidebar-border);
   box-sizing: border-box;
   overflow: hidden;
 }
@@ -239,7 +261,7 @@ async function logout() {
   min-width: 0;
   font-size: 15px;
   font-weight: 700;
-  color: #fff;
+  color: var(--fp-color-ink);
   white-space: nowrap;
   overflow: hidden;
 }
@@ -250,8 +272,8 @@ async function logout() {
   height: 28px;
   border: 0;
   border-radius: 6px;
-  background: rgba(148, 163, 184, 0.12);
-  color: #e2e8f0;
+  background: var(--fp-color-help-bg);
+  color: var(--fp-color-sidebar-text);
   cursor: pointer;
   display: grid;
   place-items: center;
@@ -287,9 +309,9 @@ async function logout() {
 
 :deep(.el-menu) {
   --el-menu-bg-color: transparent;
-  --el-menu-text-color: #9aa6c2;
-  --el-menu-hover-bg-color: rgba(255, 255, 255, 0.04);
-  --el-menu-active-color: #ffffff;
+  --el-menu-text-color: var(--fp-color-sidebar-muted);
+  --el-menu-hover-bg-color: var(--fp-color-sidebar-hover);
+  --el-menu-active-color: var(--fp-color-ink);
   border-right: none;
 }
 
@@ -302,7 +324,7 @@ async function logout() {
   line-height: 40px;
   margin: 2px 0;
   border-radius: 8px;
-  color: #9aa6c2;
+  color: var(--fp-color-sidebar-muted);
 }
 
 :deep(.el-menu-item .el-icon) {
@@ -311,14 +333,14 @@ async function logout() {
 }
 
 :deep(.el-menu-item.is-active) {
-  background: linear-gradient(90deg, rgba(76, 125, 255, 0.22), rgba(76, 125, 255, 0.08)) !important;
-  color: #fff !important;
+  background: var(--fp-color-sidebar-active) !important;
+  color: var(--fp-color-ink) !important;
   box-shadow: inset 3px 0 0 #4c7dff;
 }
 
 :deep(.el-menu-item:hover) {
-  background: rgba(255, 255, 255, 0.04);
-  color: #e8edf7;
+  background: var(--fp-color-sidebar-hover);
+  color: var(--fp-color-ink);
 }
 
 :deep(.el-menu--collapse .el-menu-item) {
@@ -333,7 +355,7 @@ async function logout() {
 
 .aside-footer {
   padding: 12px;
-  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  border-top: 1px solid var(--fp-color-sidebar-border);
   box-sizing: border-box;
 }
 
@@ -347,8 +369,8 @@ async function logout() {
   gap: 10px;
   padding: 8px;
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: var(--fp-color-header-btn-bg);
+  border: 1px solid var(--fp-color-sidebar-border);
   overflow: hidden;
 }
 
@@ -363,7 +385,7 @@ async function logout() {
   height: 32px;
   border-radius: 50%;
   background: rgba(76, 125, 255, 0.35);
-  color: #fff;
+  color: var(--fp-color-ink);
   display: grid;
   place-items: center;
   font-size: 13px;
@@ -378,7 +400,7 @@ async function logout() {
 .user-card__role {
   font-size: 13px;
   font-weight: 600;
-  color: #fff;
+  color: var(--fp-color-ink);
   line-height: 1.2;
 }
 
@@ -402,8 +424,8 @@ async function logout() {
   align-items: center;
   justify-content: space-between;
   padding: 0 20px;
-  background: rgba(11, 16, 32, 0.88);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  background: var(--fp-color-header-bg);
+  border-bottom: 1px solid var(--fp-color-sidebar-border);
   color: var(--fp-color-text-secondary);
   backdrop-filter: blur(12px);
 }
@@ -421,9 +443,9 @@ async function logout() {
 
 .header__link,
 .header__user {
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  background: rgba(255, 255, 255, 0.03);
-  color: #c9d3ea;
+  border: 1px solid var(--fp-color-header-btn-border);
+  background: var(--fp-color-header-btn-bg);
+  color: var(--fp-color-header-btn-text);
   font-size: 13px;
   height: 32px;
   padding: 0 10px;
@@ -436,8 +458,14 @@ async function logout() {
 
 .header__link:hover,
 .header__user:hover {
-  background: rgba(255, 255, 255, 0.06);
-  color: #e8edf7;
+  background: var(--fp-color-header-btn-hover);
+  color: var(--fp-color-header-btn-hover-text);
+}
+
+.header__theme {
+  width: 32px;
+  padding: 0;
+  justify-content: center;
 }
 
 .header__badge {
@@ -446,7 +474,7 @@ async function logout() {
   padding: 0 5px;
   border-radius: 999px;
   background: var(--fp-color-primary);
-  color: #fff;
+  color: var(--fp-color-ink);
   font-size: 12px;
   line-height: 18px;
   text-align: center;
@@ -458,18 +486,18 @@ async function logout() {
 }
 
 .header__logout {
-  color: #8b96b0;
+  color: var(--fp-color-muted);
 }
 
 .content {
   padding: 16px 20px 20px;
   background-color: transparent;
   background-image:
-    radial-gradient(900px 480px at 12% -10%, rgba(76, 125, 255, 0.22), transparent 58%),
-    radial-gradient(640px 280px at 100% 0%, rgba(61, 220, 151, 0.08), transparent 55%),
-    linear-gradient(rgba(76, 125, 255, 0.045) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(76, 125, 255, 0.045) 1px, transparent 1px),
-    linear-gradient(180deg, #10182c 0%, #0b1020 48%, #0b1020 100%);
+    radial-gradient(900px 480px at 12% -10%, var(--fp-color-glow-primary), transparent 58%),
+    radial-gradient(640px 280px at 100% 0%, var(--fp-color-glow-success), transparent 55%),
+    linear-gradient(var(--fp-color-grid-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--fp-color-grid-line) 1px, transparent 1px),
+    linear-gradient(180deg, var(--fp-color-content-start) 0%, var(--fp-color-bg) 48%, var(--fp-color-bg) 100%);
   background-size: auto, auto, 24px 24px, 24px 24px, auto;
 }
 

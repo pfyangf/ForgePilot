@@ -85,8 +85,8 @@ public class HttpModelProvider implements ModelProviderPort {
         } catch (ResponseStatusException ex) {
             throw ex;
         } catch (Exception ex) {
-            String message = ex.getMessage() == null ? ex.getClass().getSimpleName() : ex.getMessage();
-            throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "模型调用失败：" + message);
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_GATEWAY, UpstreamCallErrors.modelCallFailed(provider.getBaseUrl(), ex));
         }
     }
 

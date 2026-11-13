@@ -5,6 +5,9 @@ server:
 spring:
   application:
     name: forgepilot-server
+  web:
+    locale: zh_CN
+    locale-resolver: fixed
   datasource:
     url: ${FORGEPILOT_DB_URL:jdbc:postgresql://localhost:19532/forgepilot}
     username: ${FORGEPILOT_DB_USERNAME:forgepilot}

@@ -22,7 +22,7 @@
     <el-card class="block">
       <template #header>
         <div class="row-between">
-          <span>默认绑定：编码工具 → 模型供应商 → 模型</span>
+          <span class="fp-help-inline">默认绑定：编码工具 → 模型供应商 → 模型 <HelpTip :text="HELP.toolModelBind" /></span>
           <el-button type="primary" :loading="saving" @click="saveDefaults">保存默认值</el-button>
         </div>
       </template>
@@ -39,7 +39,7 @@
     <el-card class="block">
       <template #header>
         <div class="row-between">
-          <span>关联仓库</span>
+          <span class="fp-help-inline">关联仓库 <HelpTip :text="HELP.repoBranch" /></span>
           <el-button type="primary" link @click="showRepo = true">添加仓库</el-button>
         </div>
       </template>
@@ -187,6 +187,8 @@
 </template>
 
 <script setup lang="ts">
+import HelpTip from '@/components/HelpTip.vue'
+import { HELP } from '@/domain/help'
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'

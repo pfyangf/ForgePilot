@@ -62,8 +62,8 @@
     <el-card class="block" shadow="never">
       <template #header>
         <div class="row-between">
-          <span>当前环节：{{ gates.currentStage }}</span>
-          <span class="hint" style="margin: 0">平台建议下一步，已完成节点也可点开回看或修改。</span>
+          <span class="fp-help-inline">当前环节：{{ gates.currentStage }} <HelpTip :text="HELP.stageActions" /></span>
+          <span class="hint" style="margin: 0">平台建议下一步。流水线始终可见，动作只按当前环节显示。</span>
         </div>
       </template>
       <div class="fp-stage-panel">
@@ -72,12 +72,17 @@
           <div v-for="draft in taskDrafts" :key="draft.proposalId" class="fp-draft-card">
             <div class="fp-draft-card__meta">
               <span class="fp-status-tag">{{ taskTypeLabel(draft.taskType) }}</span>
-              <span class="fp-draft-note">平台建议，确认后只会创建任务，不会自动启动编码。</span>
+              <span class="fp-help-inline">
+                <span class="fp-draft-note">平台建议，确认后只会创建任务，不会自动启动编码。</span>
+                <HelpTip :text="HELP.pmoConfirm" />
+              </span>
             </div>
             <el-input v-model="draftTitles[draft.proposalId]" maxlength="256" />
             <div class="fp-stage-actions">
               <el-button :loading="saving" @click="returnProposal(draft)">退回</el-button>
+              <HelpTip :text="HELP.pmoReturn" />
               <el-button type="primary" :loading="saving" @click="confirmProposal(draft)">确认创建</el-button>
+              <HelpTip :text="HELP.pmoConfirm" />
             </div>
           </div>
         </div>
@@ -125,7 +130,9 @@
     </nav>
 
     <el-card v-show="activeTab === 'flow'" class="block">
-      <template #header>绑定检查（启动开发/修复任务前必须满足）</template>
+      <template #header>
+        <span class="fp-help-inline">绑定检查（启动开发/修复任务前必须满足） <HelpTip :text="HELP.toolModelBind" /></span>
+      </template>
       <el-descriptions :column="2" border>
         <el-descriptions-item label="需求评审">{{ yesNo(gates.requirementReviewApproved) }}</el-descriptions-item>
         <el-descriptions-item label="设计文档">{{ yesNo(gates.designDocumentExists) }}</el-descriptions-item>
@@ -182,6 +189,7 @@
       <div class="row">
         <el-button type="primary" :loading="saving" @click="reviewRequirement('APPROVED')">评审通过</el-button>
         <el-button type="danger" :loading="saving" @click="reviewRequirement('REJECTED')">驳回</el-button>
+        <HelpTip :text="HELP.reviewDecision" />
       </div>
       <el-table :data="detail.lifecycle.requirementReviews" empty-text="还没有评审记录" class="block">
         <el-table-column prop="decision" label="结论" width="120" />
@@ -231,6 +239,7 @@
       <div class="row">
         <el-button type="primary" :loading="saving" @click="reviewDesign('APPROVED')">评审通过</el-button>
         <el-button type="danger" :loading="saving" @click="reviewDesign('REJECTED')">驳回</el-button>
+        <HelpTip :text="HELP.reviewDecision" />
       </div>
       <el-table :data="detail.lifecycle.designReviews" empty-text="还没有设计评审记录" class="block">
         <el-table-column prop="decision" label="结论" width="120" />
@@ -240,11 +249,12 @@
     </el-card>
 
     <el-card v-show="activeTab === 'flow'" id="stage-actions" class="block" shadow="never">
-      <template #header>各环节动作</template>
-      <p class="hint">每个节点都可以按场景使用 AI 生成、配置或修改。已完成环节可查看或再改。</p>
-      <div class="fp-node-grid">
-        <div v-for="node in nodeActions" :key="node.stage" class="fp-node-item" :class="{ 'is-current': node.stage === gates.currentStage }">
-          <div class="fp-node-item__name">{{ node.stage }}</div>
+      <template #header>
+        <span class="fp-help-inline">{{ actionPanel.title }} <HelpTip :text="HELP.stageActions" /></span>
+      </template>
+      <p class="hint">{{ actionPanel.hint }} 点击上方流水线节点可回看已完成环节，不会把所有按钮一次摊开。</p>
+      <div v-if="actionPanel.nodes.length" class="fp-node-actions">
+        <div v-for="node in actionPanel.nodes" :key="node.stage">
           <div class="row" style="margin: 0">
             <el-button v-for="action in node.actions" :key="action.label" link type="primary" @click="runNodeAction(action)">
               {{ action.label }}
@@ -348,7 +358,7 @@
     <el-card v-if="status === '已完成' || status === '已发布'" v-show="activeTab === 'flow'" id="stage-发布" class="block">
       <template #header>
         <div class="row-between">
-          <span>发布</span>
+          <span class="fp-help-inline">发布 <HelpTip v-if="status === '已完成'" :text="HELP.releaseTarget" /></span>
           <el-button v-if="status === '已完成'" :loading="generating" @click="generateDraft('RELEASE_NOTES', 'releaseNotes')">AI 生成发布说明</el-button>
         </div>
       </template>
@@ -362,7 +372,10 @@
         <div v-if="!releasePlan.repositories.length" class="hint">当前没有需要合并的已推送工作分支，可以直接发布记录。</div>
         <div v-for="repo in releasePlan.repositories" :key="repo.projectRepositoryId" class="repo-bind">
           <div class="repo-bind__name">{{ repo.displayName || repo.localDirectoryName }}</div>
-          <div class="hint">工作分支：{{ repo.sourceBranches.join('、') || '—' }}</div>
+          <div class="fp-help-inline">
+            <span class="hint" style="margin: 0">工作分支：{{ repo.sourceBranches.join('、') || '—' }}</span>
+            <HelpTip :text="HELP.releaseTarget" />
+          </div>
           <el-select
             v-model="releaseTargets[repo.projectRepositoryId]"
             filterable
@@ -427,7 +440,10 @@
             <el-option v-for="item in openDefects" :key="item.id" :label="`${item.code} ${item.title}`" :value="item.id" />
           </el-select>
         </el-form-item>
-        <el-form-item label="工作分支">
+        <el-form-item>
+          <template #label>
+            <span class="fp-help-inline">工作分支 <HelpTip :text="HELP.repoBranch" /></span>
+          </template>
           <el-input v-model="newWorkingBranch" placeholder="默认按需求编号生成，可修改" />
           <p class="hint">默认根据需求号生成，例如 fp/REQ-DEMO99-3。若已被占用，会带上任务号后缀。</p>
         </el-form-item>
@@ -483,7 +499,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import DOMPurify from 'dompurify'
@@ -491,7 +507,9 @@ import { marked } from 'marked'
 import { apiFetch } from '@/api/http'
 import BranchPill from '@/components/BranchPill.vue'
 import FlowBoard from '@/components/FlowBoard.vue'
+import HelpTip from '@/components/HelpTip.vue'
 import { draftTitlesFrom, isTaskDraft, taskTypeLabel, type PmoProposal } from '@/domain/pmo'
+import { HELP } from '@/domain/help'
 import { statusTone, taskStatusLabel } from '@/domain/labels'
 import {
   defectLoopCaption,
@@ -500,6 +518,7 @@ import {
   stageAnchorId,
   stageDef,
 } from '@/domain/pipeline'
+import { visibleNodeActions } from '@/domain/stageActions'
 
 marked.setOptions({ gfm: true, breaks: true })
 
@@ -827,23 +846,23 @@ const stageAdvice = computed(() => {
   return { hint, primary, secondary, danger }
 })
 
-const nodeActions = computed(() => [
-  { stage: '提出需求', actions: [{ label: '查看', type: 'focus', stage: '提出需求' }] },
-  { stage: '需求分析', actions: [{ label: 'AI 分析草稿', type: 'ai', scene: 'REQUIREMENT_ANALYSIS', target: 'draft' }, { label: '修改', type: 'focus', stage: '需求分析' }] },
-  { stage: '需求评审', actions: [{ label: 'AI 评审意见', type: 'ai', scene: 'REQUIREMENT_REVIEW', target: 'reviewComment' }, { label: '查看', type: 'focus', stage: '需求评审' }] },
-  { stage: '设计文档', actions: [{ label: 'AI 改写', type: 'ai', scene: 'DESIGN_REWRITE', target: 'designBody' }, { label: '导入', type: 'import' }, { label: '编辑', type: 'focus', stage: '设计文档' }] },
-  { stage: '设计文档评审', actions: [{ label: 'AI 评审意见', type: 'ai', scene: 'DESIGN_REVIEW', target: 'designReviewComment' }, { label: '查看', type: 'focus', stage: '设计文档评审' }] },
-  { stage: 'AI Coding 绑定', actions: [{ label: '配置', type: 'project' }] },
-  { stage: '仓库绑定', actions: [{ label: '配置仓库', type: 'project' }] },
-  { stage: '开发', actions: [{ label: '打开任务', type: 'focus', stage: '开发' }] },
-  { stage: '代码评审', actions: [{ label: '打开待审任务', type: 'review-task' }] },
-  { stage: '测试', actions: [{ label: 'AI 测试要点', type: 'ai', scene: 'TEST_POINTS', target: 'testPoints' }] },
-  { stage: '缺陷登记', actions: [{ label: 'AI 缺陷描述', type: 'ai', scene: 'DEFECT_DESCRIPTION', target: 'newDefectDesc' }, { label: '登记', type: 'defect' }] },
-  { stage: '缺陷修改', actions: [{ label: '查看缺陷', type: 'focus', stage: '缺陷登记' }] },
-  { stage: '回归测试', actions: [{ label: '查看缺陷', type: 'focus', stage: '缺陷登记' }] },
-  { stage: '验收测试', actions: [{ label: 'AI 验收清单', type: 'ai', scene: 'ACCEPTANCE', target: 'acceptComment' }, { label: '修改', type: 'focus', stage: '验收测试' }] },
-  { stage: '发布', actions: [{ label: 'AI 发布说明', type: 'ai', scene: 'RELEASE_NOTES', target: 'releaseNotes' }, { label: '配置版本', type: 'focus', stage: '发布' }] },
-])
+const focusedStage = ref('')
+
+const actionPanel = computed(() =>
+  visibleNodeActions({
+    currentStage: gates.value.currentStage,
+    status: status.value,
+    focusedStage: focusedStage.value || gates.value.currentStage,
+    showDefectLoop: showLoop.value,
+  }),
+)
+
+watch(
+  () => gates.value.currentStage,
+  (stage) => {
+    focusedStage.value = stage
+  },
+)
 
 function statusToneClass(value: string) {
   const tone = statusTone(value)
@@ -856,6 +875,7 @@ function focusStage(stage: string) {
 }
 
 function onSelectNode(stage: string) {
+  focusedStage.value = stage
   const def = stageDef(stage)
   if (def?.section === 'project' && detail.value?.requirement.projectId) {
     router.push(`/projects/${detail.value.requirement.projectId}`)
@@ -1473,7 +1493,7 @@ function openTask(row: { id: string }) {
   border: 1px solid var(--el-border-color);
   border-radius: 6px;
   overflow: auto;
-  background: rgba(11, 16, 32, 0.55);
+  background: var(--fp-color-editor);
 }
 .md-preview--full {
   min-height: 160px;
@@ -1512,7 +1532,7 @@ function openTask(row: { id: string }) {
   padding: 14px 16px;
   border: 1px solid var(--fp-color-border, rgba(255, 255, 255, 0.08));
   border-radius: var(--fp-radius, 12px);
-  background: rgba(255, 255, 255, 0.03);
+  background: var(--fp-color-soft);
 }
 .fp-draft-card__meta {
   display: flex;

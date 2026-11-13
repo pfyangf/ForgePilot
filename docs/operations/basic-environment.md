@@ -180,6 +180,10 @@ export FORGEPILOT_STORAGE_ROOT=/var/lib/forgepilot/execution
 export FORGEPILOT_NODE_KEY=test-exec-1
 export FORGEPILOT_NODE_CAPACITY=1
 export FORGEPILOT_PROCESS_REQUIRE_SANDBOX=false
+
+# 没有全局 IPv6 路由的机器上，Java 可能先走 IPv6 导致模型调用出现 ConnectException。
+# 同时写在 JAVA_TOOL_OPTIONS 和启动命令里，避免以后只改 jar 路径时把参数丢掉。
+export JAVA_TOOL_OPTIONS="-Djava.net.preferIPv4Stack=true"
 ```
 
 生成 JWT 密钥：
@@ -212,11 +216,11 @@ source /opt/forgepilot/env/test.env
 set +a
 
 cd /opt/forgepilot
-nohup java -Xms128m -Xmx256m \
+nohup java -Djava.net.preferIPv4Stack=true -Xms128m -Xmx256m \
   -jar forgepilot-server/target/forgepilot-server-0.1.0-SNAPSHOT.jar \
   > /tmp/forgepilot-server.log 2>&1 &
 
-nohup java -Xms128m -Xmx256m \
+nohup java -Djava.net.preferIPv4Stack=true -Xms128m -Xmx256m \
   -jar forgepilot-execution/target/forgepilot-execution-0.1.0-SNAPSHOT.jar \
   > /tmp/forgepilot-execution.log 2>&1 &
 ```

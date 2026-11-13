@@ -97,7 +97,10 @@
 
     <section v-if="visibleInbox.length" class="fp-card inbox-card" aria-label="需要你处理">
       <div class="fp-card__head">
-        <span class="fp-card__title">需要你处理</span>
+        <span class="fp-help-inline">
+          <span class="fp-card__title">需要你处理</span>
+          <HelpTip :text="HELP.inbox" />
+        </span>
         <span class="fp-card__count">{{ visibleInbox.length }} 项</span>
       </div>
       <div class="fp-inbox">
@@ -116,7 +119,9 @@
           <div class="fp-inbox__actions">
             <template v-if="item.kind === 'proposal'">
               <el-button :loading="actingId === item.id + '-return'" @click="returnInbox(item)">退回</el-button>
+              <HelpTip :text="HELP.pmoReturn" />
               <el-button type="primary" :loading="actingId === item.id + '-confirm'" @click="confirmInbox(item)">确认</el-button>
+              <HelpTip :text="HELP.pmoConfirm" />
             </template>
             <el-button
               v-else
@@ -212,7 +217,9 @@ import { useRouter } from 'vue-router'
 import { CircleCheck, Plus, Refresh, Search, Stamp, VideoPlay, Warning } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import BranchPill from '@/components/BranchPill.vue'
+import HelpTip from '@/components/HelpTip.vue'
 import MiniFlow from '@/components/MiniFlow.vue'
+import { HELP } from '@/domain/help'
 import { isInProgressRequirement } from '@/domain/pipeline'
 import { progressPercent, statusTone, taskStatusLabel } from '@/domain/labels'
 import { useAuthStore } from '@/stores/auth'

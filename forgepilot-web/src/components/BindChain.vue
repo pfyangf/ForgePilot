@@ -1,7 +1,7 @@
 <template>
   <div class="fp-bind-chain" :class="{ 'is-compact': compact }">
     <div class="fp-bind-card">
-      <div class="fp-bind-card__label">编码工具</div>
+      <div class="fp-bind-card__label fp-help-inline">编码工具 <HelpTip :text="HELP.toolModelBind" /></div>
       <el-select
         :model-value="agentProfileId || ''"
         filterable
@@ -96,6 +96,8 @@
 </template>
 
 <script setup lang="ts">
+import HelpTip from '@/components/HelpTip.vue'
+import { HELP } from '@/domain/help'
 import { computed } from 'vue'
 import {
   agentTypeLabel,

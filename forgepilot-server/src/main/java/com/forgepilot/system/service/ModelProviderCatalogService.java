@@ -1,5 +1,6 @@
 package com.forgepilot.system.service;
 
+import com.forgepilot.system.adapter.UpstreamCallErrors;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.forgepilot.execution.domain.AgentProfile;
@@ -223,7 +224,7 @@ public class ModelProviderCatalogService {
             result = probe(provider.getBaseUrl(), wire, chosen, apiKey);
         } catch (Exception ex) {
             long latencyMs = (System.nanoTime() - started) / 1_000_000L;
-            result = new TestResult(false, 0, latencyMs, "请求失败：" + safeMessage(ex), null);
+            result = new TestResult(false, 0, latencyMs, UpstreamCallErrors.probeFailed(provider.getBaseUrl(), ex), null);
         }
         activityLogRecorder.record(
                 user.tenantId(),

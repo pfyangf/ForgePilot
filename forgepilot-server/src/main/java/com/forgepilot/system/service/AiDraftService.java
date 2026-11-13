@@ -122,7 +122,7 @@ public class AiDraftService {
 
     private String buildPrompt(String scene, String hint, Context context) {
         StringBuilder prompt = new StringBuilder();
-        prompt.append("你是 ForgePilot 平台的研发助手。请用简体中文直接给出可编辑的草稿正文，不要解释你在做什么，不要使用 Markdown 代码围栏包裹全文。\n");
+        prompt.append("你是 ForgePilot 平台的研发助手。请一律使用简体中文（zh-CN）直接给出可编辑的草稿正文，不要使用日文、英文或其他语言，不要解释你在做什么，不要使用 Markdown 代码围栏包裹全文。\n");
         appendContext(prompt, context);
         if (hint != null && !hint.isBlank()) {
             prompt.append("\n用户补充：\n").append(hint.trim()).append("\n");
